@@ -10,3 +10,6 @@
 *.out
 coverage.out
 
+# Local artifacts (captures, schema attempts, etc.)
+/artifacts/
+schema.json

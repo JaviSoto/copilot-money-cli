@@ -8,7 +8,17 @@ Unofficial CLI + API client for Copilot Money.
 - Output in `json` and nicely formatted terminal tables.
 - Prefer direct API calls (no browser) once the GraphQL surface is mapped.
 
+## Safety
+
+- Default to read-only (dry-run) behavior.
+- Any write action should require an explicit `--apply`.
+- Keep an `undo` path (either Copilot’s own undo, or replaying prior field values).
+
 ## Status
 
 Scaffold only (no API calls yet).
 
+## Dev notes
+
+- Copilot’s web app uses GraphQL at `https://app.copilot.money/api/graphql`.
+- Server-side introspection is disabled, so schema download requires alternative approaches (e.g., capturing operation documents from the web app traffic).
