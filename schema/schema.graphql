@@ -81,7 +81,7 @@ type CardPaymentMethod {
 }
 
 type Category {
-  budget: CategoryBudget
+  budget(isRolloverEnabled: Boolean): JSON
   canBeDeleted: JSON
   childCategories: Category
   colorName: JSON
@@ -210,20 +210,20 @@ type ProviderInstitution {
 }
 
 type Query {
-  accountLiveBalance: AccountBalanceHistory
-  accounts: Account
+  accountLiveBalance(accountId: ID!, itemId: ID!): JSON
+  accounts(filter: AccountFilter): JSON
   categories: Category
   categoriesTotal: QueryCategoriesTotal
-  institution: Institution
+  institution(id: ID!): JSON
   monthlySpending: QueryMonthlySpending
-  networthHistory: NetworthHistory
+  networthHistory(timeFrame: TimeFrame): JSON
   networthLiveBalance: NetworthHistory
-  recurrings: Recurring
+  recurrings(filter: RecurringFilter): JSON
   subscription: QuerySubscription
   tags: Tag
-  transactions: TransactionPagination
-  transactionsFeed: QueryTransactionsFeed
-  transactionsSummary: QueryTransactionsSummary
+  transactions(after: String, before: String, filter: TransactionFilter, first: Int, last: Int, sort: [TransactionSort!]): JSON
+  transactionsFeed(after: String, before: String, filter: TransactionFilter, first: Int, last: Int, sort: [TransactionSort!]): JSON
+  transactionsSummary(filter: TransactionFilter): JSON
   unpaidUpcomingRecurrings: Recurring
   user: QueryUser
 }

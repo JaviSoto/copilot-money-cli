@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if command -v cargo >/dev/null 2>&1; then
+  cargo fmt --all -- --check
+  cargo test
+  cargo clippy -- -D warnings
+fi
+
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --verbose
+else
+  echo "warning: gitleaks not found; skipping local secret scan" >&2
+fi
+

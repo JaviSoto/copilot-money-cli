@@ -26,3 +26,8 @@ Scaffold only (no API calls yet).
 
 - Copilot’s web app uses GraphQL at `https://app.copilot.money/api/graphql`.
 - Server-side introspection is disabled, so schema download requires alternative approaches (e.g., capturing operation documents from the web app traffic).
+
+## Guardrails
+
+- CI runs `gitleaks` to catch accidental credential commits.
+- For local hooks: `./scripts/setup-dev.sh` (and install `gitleaks` for staged scanning).

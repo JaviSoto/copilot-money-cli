@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use graphql_parser::query::{
     Definition, Document, FragmentDefinition, OperationDefinition, Selection, SelectionSet, Type,
-    TypeCondition,
+    TypeCondition, Value, VariableDefinition,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -24,6 +24,7 @@ impl TypeRef {
 pub struct FieldDef {
     pub name: String,
     pub ty: TypeRef,
+    pub args: BTreeMap<String, TypeRef>,
 }
 
 #[derive(Debug, Default)]
@@ -41,14 +42,48 @@ impl SchemaDraft {
 
     pub fn add_field(&mut self, object: &str, field_name: &str, ty: TypeRef) {
         self.ensure_object(object);
-        self.objects
-            .entry(object.to_string())
-            .or_default()
+
+        let fields = self.objects.entry(object.to_string()).or_default();
+        match fields.get_mut(field_name) {
+            Some(existing) => {
+                if existing.ty != ty {
+                    existing.ty = TypeRef::named("JSON");
+                }
+            }
+            None => {
+                fields.insert(
+                    field_name.to_string(),
+                    FieldDef {
+                        name: field_name.to_string(),
+                        ty,
+                        args: BTreeMap::new(),
+                    },
+                );
+            }
+        }
+    }
+
+    pub fn add_field_arg(&mut self, object: &str, field_name: &str, arg_name: &str, ty: TypeRef) {
+        self.ensure_object(object);
+        let fields = self.objects.entry(object.to_string()).or_default();
+        let field = fields
             .entry(field_name.to_string())
             .or_insert_with(|| FieldDef {
                 name: field_name.to_string(),
-                ty,
+                ty: TypeRef::named("JSON"),
+                args: BTreeMap::new(),
             });
+
+        match field.args.get_mut(arg_name) {
+            Some(existing) => {
+                if *existing != ty {
+                    *existing = TypeRef::named("JSON");
+                }
+            }
+            None => {
+                field.args.insert(arg_name.to_string(), ty);
+            }
+        }
     }
 }
 
@@ -89,18 +124,39 @@ pub fn render_schema_from_operations(graphql_files: &[PathBuf]) -> anyhow::Resul
         match op {
             OperationDefinition::Query(q) => {
                 collect_inputs_from_vars(&mut draft, &q.variable_definitions);
-                process_selection_set(&mut draft, "Query", &q.selection_set, &fragments);
+                let var_types = var_type_map(&q.variable_definitions);
+                process_selection_set(
+                    &mut draft,
+                    "Query",
+                    &q.selection_set,
+                    &fragments,
+                    &var_types,
+                );
             }
             OperationDefinition::Mutation(m) => {
                 collect_inputs_from_vars(&mut draft, &m.variable_definitions);
-                process_selection_set(&mut draft, "Mutation", &m.selection_set, &fragments);
+                let var_types = var_type_map(&m.variable_definitions);
+                process_selection_set(
+                    &mut draft,
+                    "Mutation",
+                    &m.selection_set,
+                    &fragments,
+                    &var_types,
+                );
             }
             OperationDefinition::Subscription(s) => {
                 collect_inputs_from_vars(&mut draft, &s.variable_definitions);
-                process_selection_set(&mut draft, "Query", &s.selection_set, &fragments);
+                let var_types = var_type_map(&s.variable_definitions);
+                process_selection_set(
+                    &mut draft,
+                    "Query",
+                    &s.selection_set,
+                    &fragments,
+                    &var_types,
+                );
             }
             OperationDefinition::SelectionSet(ss) => {
-                process_selection_set(&mut draft, "Query", ss, &fragments);
+                process_selection_set(&mut draft, "Query", ss, &fragments, &HashMap::new());
             }
         }
     }
@@ -108,7 +164,13 @@ pub fn render_schema_from_operations(graphql_files: &[PathBuf]) -> anyhow::Resul
     for frag in fragments.values() {
         let ty = type_condition_name(&frag.type_condition);
         draft.ensure_object(&ty);
-        process_selection_set(&mut draft, &ty, &frag.selection_set, &fragments);
+        process_selection_set(
+            &mut draft,
+            &ty,
+            &frag.selection_set,
+            &fragments,
+            &HashMap::new(),
+        );
     }
 
     Ok(render_schema(&draft, &sources))
@@ -128,7 +190,16 @@ fn render_schema(draft: &SchemaDraft, sources: &[(PathBuf, String)]) -> String {
     }
     out.push('\n');
 
-    out.push_str("schema { query: Query }\n\n");
+    let has_mutation = draft
+        .objects
+        .get("Mutation")
+        .map(|m| !m.is_empty())
+        .unwrap_or(false);
+    if has_mutation {
+        out.push_str("schema { query: Query mutation: Mutation }\n\n");
+    } else {
+        out.push_str("schema { query: Query }\n\n");
+    }
 
     for (union_name, members) in &draft.unions {
         let rhs = members.iter().cloned().collect::<Vec<_>>().join(" | ");
@@ -148,7 +219,11 @@ fn render_schema(draft: &SchemaDraft, sources: &[(PathBuf, String)]) -> String {
             out.push_str("  _placeholder: JSON\n");
         } else {
             for (field_name, field) in fields {
-                out.push_str(&format!("  {field_name}: {}\n", render_type_ref(&field.ty)));
+                let args = render_args(&field.args);
+                out.push_str(&format!(
+                    "  {field_name}{args}: {}\n",
+                    render_type_ref(&field.ty)
+                ));
             }
         }
         out.push_str("}\n\n");
@@ -169,10 +244,19 @@ fn render_type_ref(ty: &TypeRef) -> String {
     }
 }
 
-fn collect_inputs_from_vars(
-    draft: &mut SchemaDraft,
-    vars: &[graphql_parser::query::VariableDefinition<String>],
-) {
+fn render_args(args: &BTreeMap<String, TypeRef>) -> String {
+    if args.is_empty() {
+        return String::new();
+    }
+    let parts = args
+        .iter()
+        .map(|(k, v)| format!("{k}: {}", render_type_ref(v)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("({parts})")
+}
+
+fn collect_inputs_from_vars(draft: &mut SchemaDraft, vars: &[VariableDefinition<String>]) {
     for v in vars {
         collect_named_types_from_var_type(&v.var_type, &mut draft.inputs, &mut draft.scalars);
     }
@@ -206,9 +290,10 @@ fn process_selection_set(
     current_type: &str,
     selection_set: &SelectionSet<String>,
     fragments: &HashMap<String, FragmentDefinition<String>>,
+    var_types: &HashMap<String, TypeRef>,
 ) {
     if draft.unions.contains_key(current_type) {
-        process_union_selection_set(draft, selection_set, fragments);
+        process_union_selection_set(draft, selection_set, fragments, var_types);
         return;
     }
 
@@ -219,6 +304,13 @@ fn process_selection_set(
             Selection::Field(field) => {
                 if field.name == "__typename" {
                     continue;
+                }
+
+                // Capture argument names and best-effort types.
+                for (arg_name, value) in &field.arguments {
+                    if let Some(arg_ty) = infer_argument_type(value, var_types) {
+                        draft.add_field_arg(current_type, &field.name, arg_name, arg_ty);
+                    }
                 }
 
                 if field.selection_set.items.is_empty() {
@@ -234,20 +326,37 @@ fn process_selection_set(
                     );
                     draft.add_field(current_type, &field.name, TypeRef::named(inferred.clone()));
                     if draft.unions.contains_key(&inferred) {
-                        process_union_selection_set(draft, &field.selection_set, fragments);
+                        process_union_selection_set(
+                            draft,
+                            &field.selection_set,
+                            fragments,
+                            var_types,
+                        );
                     } else {
-                        process_selection_set(draft, &inferred, &field.selection_set, fragments);
+                        process_selection_set(
+                            draft,
+                            &inferred,
+                            &field.selection_set,
+                            fragments,
+                            var_types,
+                        );
                     }
                 }
             }
             Selection::FragmentSpread(spread) => {
                 if let Some(frag) = fragments.get(&spread.fragment_name) {
                     // Expand fragment fields into the current type.
-                    process_selection_set(draft, current_type, &frag.selection_set, fragments);
+                    process_selection_set(
+                        draft,
+                        current_type,
+                        &frag.selection_set,
+                        fragments,
+                        var_types,
+                    );
                     // Also ensure the fragment's declared type exists.
                     let ty = type_condition_name(&frag.type_condition);
                     draft.ensure_object(&ty);
-                    process_selection_set(draft, &ty, &frag.selection_set, fragments);
+                    process_selection_set(draft, &ty, &frag.selection_set, fragments, var_types);
                 }
             }
             Selection::InlineFragment(inline) => {
@@ -256,7 +365,7 @@ fn process_selection_set(
                     .as_ref()
                     .map(type_condition_name)
                     .unwrap_or_else(|| current_type.to_string());
-                process_selection_set(draft, &ty, &inline.selection_set, fragments);
+                process_selection_set(draft, &ty, &inline.selection_set, fragments, var_types);
             }
         }
     }
@@ -266,6 +375,7 @@ fn process_union_selection_set(
     draft: &mut SchemaDraft,
     selection_set: &SelectionSet<String>,
     fragments: &HashMap<String, FragmentDefinition<String>>,
+    var_types: &HashMap<String, TypeRef>,
 ) {
     for selection in &selection_set.items {
         match selection {
@@ -273,14 +383,14 @@ fn process_union_selection_set(
                 if let Some(tc) = &inline.type_condition {
                     let ty = type_condition_name(tc);
                     draft.ensure_object(&ty);
-                    process_selection_set(draft, &ty, &inline.selection_set, fragments);
+                    process_selection_set(draft, &ty, &inline.selection_set, fragments, var_types);
                 }
             }
             Selection::FragmentSpread(spread) => {
                 if let Some(frag) = fragments.get(&spread.fragment_name) {
                     let ty = type_condition_name(&frag.type_condition);
                     draft.ensure_object(&ty);
-                    process_selection_set(draft, &ty, &frag.selection_set, fragments);
+                    process_selection_set(draft, &ty, &frag.selection_set, fragments, var_types);
                 }
             }
             Selection::Field(_) => {}
@@ -362,6 +472,39 @@ fn pascal_case(s: &str) -> String {
 fn type_condition_name(tc: &TypeCondition<String>) -> String {
     match tc {
         TypeCondition::On(name) => name.clone(),
+    }
+}
+
+fn var_type_map(vars: &[VariableDefinition<String>]) -> HashMap<String, TypeRef> {
+    let mut out = HashMap::new();
+    for v in vars {
+        out.insert(v.name.clone(), type_ref_from_gql_type(&v.var_type));
+    }
+    out
+}
+
+fn type_ref_from_gql_type(ty: &Type<String>) -> TypeRef {
+    match ty {
+        Type::NamedType(n) => TypeRef::Named(n.clone()),
+        Type::ListType(inner) => TypeRef::List(Box::new(type_ref_from_gql_type(inner))),
+        Type::NonNullType(inner) => TypeRef::NonNull(Box::new(type_ref_from_gql_type(inner))),
+    }
+}
+
+fn infer_argument_type(
+    value: &Value<String>,
+    var_types: &HashMap<String, TypeRef>,
+) -> Option<TypeRef> {
+    match value {
+        Value::Variable(name) => var_types.get(name).cloned(),
+        Value::Boolean(_) => Some(TypeRef::named("Boolean")),
+        Value::Int(_) => Some(TypeRef::named("Int")),
+        Value::Float(_) => Some(TypeRef::named("Float")),
+        Value::String(_) => Some(TypeRef::named("String")),
+        Value::Enum(_) => Some(TypeRef::named("JSON")),
+        Value::List(_) => Some(TypeRef::named("JSON")),
+        Value::Object(_) => Some(TypeRef::named("JSON")),
+        Value::Null => Some(TypeRef::named("JSON")),
     }
 }
 

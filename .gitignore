@@ -5,6 +5,19 @@
 # Python
 __pycache__/
 *.pyc
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*.jks
+*.kdbx
+*secrets*
 
 # Rust
 /target/
