@@ -1,0 +1,12 @@
+.DS_Store
+.idea/
+.vscode/
+
+# Go
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+coverage.out
+
