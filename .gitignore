@@ -2,13 +2,12 @@
 .idea/
 .vscode/
 
-# Go
-/bin/
-/dist/
-*.exe
-*.test
-*.out
-coverage.out
+# Python
+__pycache__/
+*.pyc
+
+# Rust
+/target/
 
 # Local artifacts (captures, schema attempts, etc.)
 /artifacts/

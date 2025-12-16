@@ -14,6 +14,10 @@ Unofficial CLI + API client for Copilot Money.
 - Any write action should require an explicit `--apply`.
 - Keep an `undo` path (either Copilot’s own undo, or replaying prior field values).
 
+## Language
+
+Rust (CLI + client). A couple of helper scripts live under `tools/`.
+
 ## Status
 
 Scaffold only (no API calls yet).
