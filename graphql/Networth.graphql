@@ -1,0 +1,13 @@
+query Networth($timeFrame: TimeFrame) {
+  networthHistory(timeFrame: $timeFrame) {
+    ...NetworthFields
+    __typename
+  }
+}
+
+fragment NetworthFields on NetworthHistory {
+  assets
+  date
+  debt
+  __typename
+}

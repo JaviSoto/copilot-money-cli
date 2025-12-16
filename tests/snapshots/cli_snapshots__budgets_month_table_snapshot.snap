@@ -1,0 +1,10 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"budgets\", \"month\"])"
+---
+╭─────────┬────────╮
+│ month   │ amount │
+├─────────┼────────┤
+│ 2025-11 │ 1200   │
+│ 2025-12 │ 1300   │
+╰─────────┴────────╯

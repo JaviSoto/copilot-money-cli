@@ -7,9 +7,13 @@ use clap::Parser;
 #[command(name = "schema-gen")]
 #[command(about = "Generate a best-effort schema stub from GraphQL operations")]
 struct Args {
-    /// Directory containing `.graphql` documents (defaults to newest under `artifacts/graphql-ops/*/graphql`)
-    #[arg(long)]
-    graphql_dir: Option<PathBuf>,
+    /// Directory containing `.graphql` documents.
+    #[arg(long, default_value = "graphql")]
+    graphql_dir: PathBuf,
+
+    /// Use newest capture dir under `artifacts/graphql-ops/*/graphql` instead of `--graphql-dir`.
+    #[arg(long, default_value_t = false)]
+    latest_artifacts: bool,
 
     #[arg(long, default_value = "schema/schema.graphql")]
     out: PathBuf,
@@ -18,9 +22,10 @@ struct Args {
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let graphql_dir = match args.graphql_dir {
-        Some(p) => p,
-        None => newest_graphql_dir()?,
+    let graphql_dir = if args.latest_artifacts {
+        newest_graphql_dir()?
+    } else {
+        args.graphql_dir
     };
 
     let mut docs = Vec::new();

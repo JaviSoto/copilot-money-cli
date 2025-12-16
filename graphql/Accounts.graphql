@@ -1,0 +1,35 @@
+query Accounts($filter: AccountFilter, $accountLink: Boolean = false) {
+  accounts(filter: $filter) {
+    ...AccountFields
+    accountLink @include(if: $accountLink) {
+      type
+      account {
+        ...AccountFields
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment AccountFields on Account {
+  hasHistoricalUpdates
+  latestBalanceUpdate
+  hasLiveBalance
+  institutionId
+  isUserHidden
+  isUserClosed
+  liveBalance
+  isManual
+  balance
+  subType
+  itemId
+  limit
+  color
+  name
+  type
+  mask
+  id
+  __typename
+}

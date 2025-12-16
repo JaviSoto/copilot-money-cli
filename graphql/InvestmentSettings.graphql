@@ -1,0 +1,16 @@
+query InvestmentSettings {
+  settings: user {
+    id
+    investmentConfig {
+      excludedAccounts {
+        id
+        itemId
+        __typename
+      }
+      benchmarkHoldingId
+      liveBalance
+      __typename
+    }
+    __typename
+  }
+}

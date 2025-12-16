@@ -1,0 +1,25 @@
+query Spends($history: Boolean = true) {
+  categoriesTotal {
+    spend {
+      current {
+        ...SpendMonthlyFields
+        __typename
+      }
+      histories @include(if: $history) {
+        ...SpendMonthlyFields
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment SpendMonthlyFields on CategoryMonthlySpent {
+  unpaidRecurringAmount
+  comparisonAmount
+  amount
+  month
+  id
+  __typename
+}

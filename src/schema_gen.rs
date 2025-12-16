@@ -399,7 +399,10 @@ fn process_union_selection_set(
 }
 
 fn infer_leaf_scalar(field_name: &str) -> TypeRef {
-    if field_name == "id" || field_name.ends_with("Id") || field_name.ends_with("ID") {
+    if field_name == "id" {
+        return TypeRef::NonNull(Box::new(TypeRef::named("ID")));
+    }
+    if field_name.ends_with("Id") || field_name.ends_with("ID") {
         return TypeRef::named("ID");
     }
     TypeRef::named("JSON")

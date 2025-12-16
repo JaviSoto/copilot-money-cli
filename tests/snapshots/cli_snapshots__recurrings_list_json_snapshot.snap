@@ -1,0 +1,18 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"--output\", \"json\", \"recurrings\", \"list\"])"
+---
+[
+  {
+    "id": "rec_1",
+    "name": "Rent",
+    "frequency": "monthly",
+    "category_id": "cat_housing"
+  },
+  {
+    "id": "rec_2",
+    "name": "Internet",
+    "frequency": "monthly",
+    "category_id": "cat_utilities"
+  }
+]

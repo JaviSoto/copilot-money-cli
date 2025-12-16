@@ -1,0 +1,37 @@
+query User {
+  user {
+    budgetingConfig {
+      isEnabled
+      rolloversConfig {
+        isEnabled
+        startDate
+        categories {
+          isRolloverDisabled
+          canBeDeleted
+          isExcluded
+          colorName
+          name
+          id
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    onboarding {
+      ...OnboardingFields
+      __typename
+    }
+    intercomUserHash
+    serviceEndsOn
+    termsStatus
+    id
+    __typename
+  }
+}
+
+fragment OnboardingFields on Onboarding {
+  lastCompletedStep
+  isCompleted
+  __typename
+}

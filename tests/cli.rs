@@ -11,10 +11,10 @@ fn version_works() {
 }
 
 #[test]
-fn hello_json_works() {
+fn auth_status_json_works_without_token() {
     Command::new(assert_cmd::cargo::cargo_bin!("copilot"))
-        .args(["--output", "json", "hello"])
+        .args(["--output", "json", "auth", "status"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("\"status\""));
+        .stdout(predicate::str::contains("token_configured"));
 }

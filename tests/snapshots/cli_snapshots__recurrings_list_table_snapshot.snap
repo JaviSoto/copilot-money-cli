@@ -1,0 +1,10 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"recurrings\", \"list\"])"
+---
+╭───────┬──────────┬───────────┬───────────────╮
+│ id    │ name     │ frequency │ category_id   │
+├───────┼──────────┼───────────┼───────────────┤
+│ rec_1 │ Rent     │ monthly   │ cat_housing   │
+│ rec_2 │ Internet │ monthly   │ cat_utilities │
+╰───────┴──────────┴───────────┴───────────────╯

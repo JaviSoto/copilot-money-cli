@@ -1,0 +1,9 @@
+query MonthlySpend {
+  monthlySpending {
+    comparisonAmount
+    totalAmount
+    date
+    id
+    __typename
+  }
+}

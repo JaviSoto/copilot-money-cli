@@ -1,0 +1,37 @@
+{
+  "data": {
+    "transactions": {
+      "edges": [
+        {
+          "cursor": "c1",
+          "node": {
+            "id": "txn_1",
+            "date": "2025-12-15",
+            "name": "Venmo",
+            "amount": "-100.00",
+            "isReviewed": false,
+            "categoryId": "cat_other"
+          }
+        },
+        {
+          "cursor": "c2",
+          "node": {
+            "id": "txn_2",
+            "date": "2025-12-15",
+            "name": "Amazon.com",
+            "amount": "-57.48",
+            "isReviewed": true,
+            "categoryId": "cat_shops"
+          }
+        }
+      ],
+      "pageInfo": {
+        "endCursor": "c2",
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": "c1"
+      }
+    }
+  }
+}
+

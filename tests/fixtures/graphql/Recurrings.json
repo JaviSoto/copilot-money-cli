@@ -1,0 +1,19 @@
+{
+  "data": {
+    "recurrings": [
+      {
+        "id": "rec_1",
+        "name": "Rent",
+        "frequency": "monthly",
+        "categoryId": "cat_housing"
+      },
+      {
+        "id": "rec_2",
+        "name": "Internet",
+        "frequency": "monthly",
+        "categoryId": "cat_utilities"
+      }
+    ]
+  }
+}
+

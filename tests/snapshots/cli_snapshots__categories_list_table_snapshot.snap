@@ -1,0 +1,10 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"categories\", \"list\"])"
+---
+╭───────────┬───────╮
+│ id        │ name  │
+├───────────┼───────┤
+│ cat_other │ Other │
+│ cat_shops │ Shops │
+╰───────────┴───────╯

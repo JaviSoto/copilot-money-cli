@@ -1,0 +1,88 @@
+query TransactionsFeed($first: Int, $after: String, $last: Int, $before: String, $filter: TransactionFilter, $sort: [TransactionSort!], $month: Boolean = false) {
+  feed: transactionsFeed(
+    first: $first
+    after: $after
+    last: $last
+    before: $before
+    filter: $filter
+    sort: $sort
+  ) {
+    edges {
+      cursor
+      node {
+        ... on TransactionMonth @include(if: $month) {
+          amount
+          month
+          id
+          __typename
+        }
+        ... on Transaction {
+          ...TransactionFields
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment TagFields on Tag {
+  colorName
+  name
+  id
+  __typename
+}
+
+fragment GoalFields on Goal {
+  name
+  icon {
+    ... on EmojiUnicode {
+      unicode
+      __typename
+    }
+    ... on Genmoji {
+      id
+      src
+      __typename
+    }
+    __typename
+  }
+  id
+  __typename
+}
+
+fragment TransactionFields on Transaction {
+  suggestedCategoryIds
+  recurringId
+  categoryId
+  isReviewed
+  accountId
+  createdAt
+  isPending
+  tipAmount
+  userNotes
+  itemId
+  amount
+  date
+  name
+  type
+  id
+  tags {
+    ...TagFields
+    __typename
+  }
+  goal {
+    ...GoalFields
+    __typename
+  }
+  __typename
+}

@@ -1,25 +1,25 @@
 # Generated stub schema (best-effort)
 # Source docs:
-# - artifacts/graphql-ops/20251216-094129/graphql/AccountLiveBalance.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Accounts.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Budgets.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Categories.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Institution.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/InvestmentSettings.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/MonthlySpend.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Networth.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/NetworthLiveBalance.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/NetworthSettings.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Recurrings.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Spends.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Subscription.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Tags.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/TransactionSummary.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/Transactions.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/TransactionsFeed.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/UpcomingRecurrings.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/User.graphql
-# - artifacts/graphql-ops/20251216-094129/graphql/WaitlistCheck.graphql
+# - graphql/AccountLiveBalance.graphql
+# - graphql/Accounts.graphql
+# - graphql/Budgets.graphql
+# - graphql/Categories.graphql
+# - graphql/Institution.graphql
+# - graphql/InvestmentSettings.graphql
+# - graphql/MonthlySpend.graphql
+# - graphql/Networth.graphql
+# - graphql/NetworthLiveBalance.graphql
+# - graphql/NetworthSettings.graphql
+# - graphql/Recurrings.graphql
+# - graphql/Spends.graphql
+# - graphql/Subscription.graphql
+# - graphql/Tags.graphql
+# - graphql/TransactionSummary.graphql
+# - graphql/Transactions.graphql
+# - graphql/TransactionsFeed.graphql
+# - graphql/UpcomingRecurrings.graphql
+# - graphql/User.graphql
+# - graphql/WaitlistCheck.graphql
 
 scalar JSON
 
@@ -45,7 +45,7 @@ type Account {
   color: JSON
   hasHistoricalUpdates: JSON
   hasLiveBalance: JSON
-  id: ID
+  id: ID!
   institutionId: ID
   isManual: JSON
   isUserClosed: JSON
@@ -71,12 +71,12 @@ type AccountBalanceHistory {
 }
 
 type AppleAppStorePaymentMethod {
-  id: ID
+  id: ID!
 }
 
 type CardPaymentMethod {
   brand: JSON
-  id: ID
+  id: ID!
   mask: JSON
 }
 
@@ -86,7 +86,7 @@ type Category {
   childCategories: Category
   colorName: JSON
   icon: CategoryIconUnion
-  id: ID
+  id: ID!
   isExcluded: JSON
   isRolloverDisabled: JSON
   name: JSON
@@ -104,7 +104,7 @@ type CategoryMonthlyBudget {
   childAmount: JSON
   childRolloverAmount: JSON
   goalAmount: JSON
-  id: ID
+  id: ID!
   month: JSON
   resolvedAmount: JSON
   rolloverAmount: JSON
@@ -115,7 +115,7 @@ type CategoryMonthlyBudget {
 type CategoryMonthlySpent {
   amount: JSON
   comparisonAmount: JSON
-  id: ID
+  id: ID!
   month: JSON
   unpaidRecurringAmount: JSON
 }
@@ -132,14 +132,14 @@ type ClaimedSubscriptionPromotion {
 
 type CopilotGiftSubscription {
   currentPeriodEndsAt: JSON
-  id: ID
+  id: ID!
   promotions: ClaimedSubscriptionPromotion
   state: JSON
 }
 
 type CopilotPaidSubscription {
   billing: SubscriptionBilling
-  id: ID
+  id: ID!
   plan: SubscriptionPlan
   promotions: ClaimedSubscriptionPromotion
   state: JSON
@@ -147,7 +147,7 @@ type CopilotPaidSubscription {
 
 type DepositoryAccountPaymentMethod {
   account: DepositoryAccountPaymentMethodAccount
-  id: ID
+  id: ID!
 }
 
 type DepositoryAccountPaymentMethodAccount {
@@ -161,20 +161,20 @@ type EmojiUnicode {
 }
 
 type Genmoji {
-  id: ID
+  id: ID!
   src: JSON
 }
 
 type Goal {
   icon: GoalIconUnion
-  id: ID
+  id: ID!
   name: JSON
 }
 
 type Institution {
   color: JSON
   displayType: JSON
-  id: ID
+  id: ID!
   logo: InstitutionLogoUnion
   logoFull: InstitutionLogoFullUnion
   name: JSON
@@ -205,7 +205,7 @@ type Onboarding {
 
 type ProviderInstitution {
   connectionType: JSON
-  id: ID
+  id: ID!
   name: JSON
 }
 
@@ -241,14 +241,14 @@ type QueryCategoriesTotalSpend {
 type QueryMonthlySpending {
   comparisonAmount: JSON
   date: JSON
-  id: ID
+  id: ID!
   totalAmount: JSON
 }
 
 type QuerySubscription {
   billing: SubscriptionBilling
   currentPeriodEndsAt: JSON
-  id: ID
+  id: ID!
   plan: SubscriptionPlan
   promotions: ClaimedSubscriptionPromotion
   state: JSON
@@ -280,7 +280,7 @@ type QueryTransactionsSummary {
 
 type QueryUser {
   budgetingConfig: QueryUserBudgetingConfig
-  id: ID
+  id: ID!
   intercomUserHash: JSON
   investmentConfig: QueryUserInvestmentConfig
   networthConfig: QueryUserNetworthConfig
@@ -303,7 +303,7 @@ type QueryUserBudgetingConfigRolloversConfig {
 type QueryUserBudgetingConfigRolloversConfigCategories {
   canBeDeleted: JSON
   colorName: JSON
-  id: ID
+  id: ID!
   isExcluded: JSON
   isRolloverDisabled: JSON
   name: JSON
@@ -316,7 +316,7 @@ type QueryUserInvestmentConfig {
 }
 
 type QueryUserInvestmentConfigExcludedAccounts {
-  id: ID
+  id: ID!
   itemId: ID
 }
 
@@ -327,7 +327,7 @@ type QueryUserNetworthConfig {
 }
 
 type QueryUserNetworthConfigExcludedAccounts {
-  id: ID
+  id: ID!
   itemId: ID
 }
 
@@ -336,7 +336,7 @@ type Recurring {
   emoji: JSON
   frequency: JSON
   icon: RecurringIconUnion
-  id: ID
+  id: ID!
   name: JSON
   nextPaymentAmount: JSON
   nextPaymentDate: JSON
@@ -373,7 +373,7 @@ type SubscriptionBillingPaymentFailure {
 type SubscriptionBillingPaymentMethod {
   account: SubscriptionBillingPaymentMethodAccount
   brand: JSON
-  id: ID
+  id: ID!
   mask: JSON
 }
 
@@ -385,7 +385,7 @@ type SubscriptionBillingPaymentMethodAccount {
 
 type SubscriptionPlan {
   amount: JSON
-  id: ID
+  id: ID!
   interval: JSON
   type: JSON
 }
@@ -393,7 +393,7 @@ type SubscriptionPlan {
 type SubscriptionPromotion {
   code: JSON
   description: SubscriptionPromotionDescription
-  id: ID
+  id: ID!
   type: JSON
   value: JSON
 }
@@ -405,7 +405,7 @@ type SubscriptionPromotionDescription {
 
 type Tag {
   colorName: JSON
-  id: ID
+  id: ID!
   name: JSON
 }
 
@@ -416,7 +416,7 @@ type Transaction {
   createdAt: JSON
   date: JSON
   goal: Goal
-  id: ID
+  id: ID!
   isPending: JSON
   isReviewed: JSON
   itemId: ID
@@ -431,7 +431,7 @@ type Transaction {
 
 type TransactionMonth {
   amount: JSON
-  id: ID
+  id: ID!
   month: JSON
 }
 

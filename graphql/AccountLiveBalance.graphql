@@ -1,0 +1,12 @@
+query AccountLiveBalance($itemId: ID!, $accountId: ID!) {
+  accountLiveBalance(itemId: $itemId, accountId: $accountId) {
+    ...BalanceFields
+    __typename
+  }
+}
+
+fragment BalanceFields on AccountBalanceHistory {
+  balance
+  date
+  __typename
+}

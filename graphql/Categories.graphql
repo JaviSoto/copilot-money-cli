@@ -1,0 +1,96 @@
+query Categories($spend: Boolean = false, $budget: Boolean = false, $rollovers: Boolean) {
+  categories {
+    ...CategoryFields
+    spend @include(if: $spend) {
+      ...SpendFields
+      __typename
+    }
+    budget(isRolloverEnabled: $rollovers) @include(if: $budget) {
+      ...BudgetFields
+      __typename
+    }
+    childCategories {
+      ...CategoryFields
+      spend @include(if: $spend) {
+        ...SpendFields
+        __typename
+      }
+      budget(isRolloverEnabled: $rollovers) @include(if: $budget) {
+        ...BudgetFields
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment SpendMonthlyFields on CategoryMonthlySpent {
+  unpaidRecurringAmount
+  comparisonAmount
+  amount
+  month
+  id
+  __typename
+}
+
+fragment BudgetMonthlyFields on CategoryMonthlyBudget {
+  unassignedRolloverAmount
+  childRolloverAmount
+  unassignedAmount
+  resolvedAmount
+  rolloverAmount
+  childAmount
+  goalAmount
+  amount
+  month
+  id
+  __typename
+}
+
+fragment CategoryFields on Category {
+  isRolloverDisabled
+  canBeDeleted
+  isExcluded
+  templateId
+  colorName
+  icon {
+    ... on EmojiUnicode {
+      unicode
+      __typename
+    }
+    ... on Genmoji {
+      id
+      src
+      __typename
+    }
+    __typename
+  }
+  name
+  id
+  __typename
+}
+
+fragment SpendFields on CategorySpend {
+  current {
+    ...SpendMonthlyFields
+    __typename
+  }
+  histories {
+    ...SpendMonthlyFields
+    __typename
+  }
+  __typename
+}
+
+fragment BudgetFields on CategoryBudget {
+  current {
+    ...BudgetMonthlyFields
+    __typename
+  }
+  histories {
+    ...BudgetMonthlyFields
+    __typename
+  }
+  __typename
+}
