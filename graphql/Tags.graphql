@@ -1,0 +1,13 @@
+query Tags {
+  tags {
+    ...TagFields
+    __typename
+  }
+}
+
+fragment TagFields on Tag {
+  colorName
+  name
+  id
+  __typename
+}

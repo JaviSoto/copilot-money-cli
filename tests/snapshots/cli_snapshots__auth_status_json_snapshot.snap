@@ -1,0 +1,14 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"--output\", \"json\", \"auth\", \"status\"])"
+---
+[
+  {
+    "key": "token_configured",
+    "value": "false"
+  },
+  {
+    "key": "token_valid",
+    "value": "unknown"
+  }
+]

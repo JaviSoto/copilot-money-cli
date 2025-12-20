@@ -1,0 +1,35 @@
+query Budgets {
+  categoriesTotal {
+    budget {
+      ...BudgetFields
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment BudgetMonthlyFields on CategoryMonthlyBudget {
+  unassignedRolloverAmount
+  childRolloverAmount
+  unassignedAmount
+  resolvedAmount
+  rolloverAmount
+  childAmount
+  goalAmount
+  amount
+  month
+  id
+  __typename
+}
+
+fragment BudgetFields on CategoryBudget {
+  current {
+    ...BudgetMonthlyFields
+    __typename
+  }
+  histories {
+    ...BudgetMonthlyFields
+    __typename
+  }
+  __typename
+}

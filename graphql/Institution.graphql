@@ -1,0 +1,51 @@
+query Institution($id: ID!) {
+  institution(id: $id) {
+    ...InstitutionFields
+    providers {
+      ...ProviderInstitutionFields
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment InstitutionFields on Institution {
+  id
+  name
+  type
+  color
+  url
+  displayType
+  logo {
+    ... on LogoBase64 {
+      content
+      contentType
+      __typename
+    }
+    ... on LogoUrl {
+      src
+      __typename
+    }
+    __typename
+  }
+  logoFull {
+    ... on LogoBase64 {
+      content
+      contentType
+      __typename
+    }
+    ... on LogoUrl {
+      src
+      __typename
+    }
+    __typename
+  }
+  __typename
+}
+
+fragment ProviderInstitutionFields on ProviderInstitution {
+  id
+  name
+  connectionType
+  __typename
+}

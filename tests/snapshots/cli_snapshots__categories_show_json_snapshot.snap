@@ -1,0 +1,22 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"--output\", \"json\", \"categories\", \"show\", \"cat_other\"])"
+---
+[
+  {
+    "key": "id",
+    "value": "cat_other"
+  },
+  {
+    "key": "name",
+    "value": "Other"
+  },
+  {
+    "key": "parent_id",
+    "value": ""
+  },
+  {
+    "key": "is_excluded",
+    "value": "false"
+  }
+]

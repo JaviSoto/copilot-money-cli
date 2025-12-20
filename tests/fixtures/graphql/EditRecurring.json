@@ -1,0 +1,12 @@
+{
+  "data": {
+    "editRecurring": {
+      "recurring": {
+        "id": "rec_1",
+        "name": "Rent",
+        "frequency": "MONTHLY",
+        "categoryId": "cat_housing"
+      }
+    }
+  }
+}

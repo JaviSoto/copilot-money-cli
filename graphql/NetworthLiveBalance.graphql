@@ -1,0 +1,13 @@
+query NetworthLiveBalance {
+  networthLiveBalance {
+    ...NetworthFields
+    __typename
+  }
+}
+
+fragment NetworthFields on NetworthHistory {
+  assets
+  date
+  debt
+  __typename
+}

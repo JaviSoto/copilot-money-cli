@@ -1,0 +1,61 @@
+mutation EditTransaction($itemId: ID!, $accountId: ID!, $id: ID!, $input: EditTransactionInput) {
+  editTransaction(itemId: $itemId, accountId: $accountId, id: $id, input: $input) {
+    transaction {
+      ...TransactionFields
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment TagFields on Tag {
+  colorName
+  name
+  id
+  __typename
+}
+
+fragment GoalFields on Goal {
+  name
+  icon {
+    ... on EmojiUnicode {
+      unicode
+      __typename
+    }
+    ... on Genmoji {
+      id
+      src
+      __typename
+    }
+    __typename
+  }
+  id
+  __typename
+}
+
+fragment TransactionFields on Transaction {
+  suggestedCategoryIds
+  recurringId
+  categoryId
+  isReviewed
+  accountId
+  createdAt
+  isPending
+  tipAmount
+  userNotes
+  itemId
+  amount
+  date
+  name
+  type
+  id
+  tags {
+    ...TagFields
+    __typename
+  }
+  goal {
+    ...GoalFields
+    __typename
+  }
+  __typename
+}

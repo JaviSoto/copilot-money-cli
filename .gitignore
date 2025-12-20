@@ -1,0 +1,34 @@
+.DS_Store
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*.jks
+*.kdbx
+
+# Common secret directories/files (keep out of the repo)
+secrets/
+.secrets/
+**/secrets/
+**/.secrets/
+
+# Rust
+/target/
+
+# Local artifacts (captures, schema attempts, etc.)
+/artifacts/
+schema.json
+*.har
+*.proxymanlogv2

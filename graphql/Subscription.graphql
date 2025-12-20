@@ -1,0 +1,117 @@
+query Subscription {
+  subscription {
+    ...CopilotPaidSubscriptionFields
+    ...CopilotGiftSubscriptionFields
+    __typename
+  }
+}
+
+fragment PlanFields on SubscriptionPlan {
+  type
+  amount
+  interval
+  id
+  __typename
+}
+
+fragment CardPaymentMethodFields on CardPaymentMethod {
+  id
+  mask
+  brand
+  __typename
+}
+
+fragment DepositoryAccountPaymentMethodFields on DepositoryAccountPaymentMethod {
+  id
+  account {
+    name
+    mask
+    institutionId
+    __typename
+  }
+  __typename
+}
+
+fragment AppleAppStorePaymentMethodFields on AppleAppStorePaymentMethod {
+  id
+  __typename
+}
+
+fragment BillingFields on SubscriptionBilling {
+  nextPeriodAmount
+  currentPeriodAmount
+  currentPeriodEndsAt
+  paymentFailure {
+    reason
+    __typename
+  }
+  paymentMethod {
+    ...CardPaymentMethodFields
+    ...DepositoryAccountPaymentMethodFields
+    ...AppleAppStorePaymentMethodFields
+    __typename
+  }
+  __typename
+}
+
+fragment PromotionFields on SubscriptionPromotion {
+  id
+  code
+  type
+  value
+  description {
+    text
+    emoji {
+      ... on EmojiUnicode {
+        unicode
+        __typename
+      }
+      ... on Genmoji {
+        id
+        src
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+  __typename
+}
+
+fragment ClaimedPromotionFields on ClaimedSubscriptionPromotion {
+  promotion {
+    ...PromotionFields
+    __typename
+  }
+  endsOn
+  __typename
+}
+
+fragment CopilotPaidSubscriptionFields on CopilotPaidSubscription {
+  id
+  state
+  plan {
+    ...PlanFields
+    __typename
+  }
+  billing {
+    ...BillingFields
+    __typename
+  }
+  promotions {
+    ...ClaimedPromotionFields
+    __typename
+  }
+  __typename
+}
+
+fragment CopilotGiftSubscriptionFields on CopilotGiftSubscription {
+  id
+  state
+  currentPeriodEndsAt
+  promotions {
+    ...ClaimedPromotionFields
+    __typename
+  }
+  __typename
+}

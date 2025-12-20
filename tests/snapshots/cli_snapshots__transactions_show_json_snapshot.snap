@@ -1,0 +1,30 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"--output\", \"json\", \"transactions\", \"show\", \"txn_1\"])"
+---
+[
+  {
+    "key": "id",
+    "value": "txn_1"
+  },
+  {
+    "key": "date",
+    "value": "2025-12-15"
+  },
+  {
+    "key": "name",
+    "value": "Venmo"
+  },
+  {
+    "key": "amount",
+    "value": "-$100.00"
+  },
+  {
+    "key": "category_id",
+    "value": "cat_other"
+  },
+  {
+    "key": "reviewed",
+    "value": "false"
+  }
+]

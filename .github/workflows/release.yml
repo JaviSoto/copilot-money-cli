@@ -1,0 +1,144 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+
+          # GitHub's macOS runners are split by major version/arch.
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            archive: tar.gz
+
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive: tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }} --bin copilot
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN=target/${{ matrix.target }}/release/copilot
+          OUT=copilot-${{ github.ref_name }}-${{ matrix.target }}
+          mkdir -p dist/$OUT
+          cp "$BIN" dist/$OUT/
+          cp README.md LICENSE CHANGELOG.md dist/$OUT/
+          tar -C dist -czf dist/$OUT.${{ matrix.archive }} $OUT
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+
+  homebrew:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check token
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.HOMEBREW_TAP_TOKEN }}" ]; then
+            echo "Missing secrets.HOMEBREW_TAP_TOKEN" >&2
+            echo "Create a fine-grained PAT with access to JaviSoto/homebrew-tap (contents:read/write) and add it as a repo secret named HOMEBREW_TAP_TOKEN." >&2
+            exit 1
+          fi
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG='${{ github.ref_name }}'
+          mkdir -p /tmp/dist
+          gh release download "$TAG" --repo JaviSoto/copilot-money-cli --pattern 'copilot-*.tar.gz' --dir /tmp/dist
+          ls -la /tmp/dist
+
+      - name: Update tap formula
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG='${{ github.ref_name }}'
+          VERSION="${TAG#v}"
+
+          linux=/tmp/dist/copilot-${TAG}-x86_64-unknown-linux-gnu.tar.gz
+          mac_intel=/tmp/dist/copilot-${TAG}-x86_64-apple-darwin.tar.gz
+          mac_arm=/tmp/dist/copilot-${TAG}-aarch64-apple-darwin.tar.gz
+
+          sha_linux=$(sha256sum "$linux" | awk '{print $1}')
+          sha_mac_intel=$(sha256sum "$mac_intel" | awk '{print $1}')
+          sha_mac_arm=$(sha256sum "$mac_arm" | awk '{print $1}')
+
+          rm -rf /tmp/homebrew-tap
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/JaviSoto/homebrew-tap.git" /tmp/homebrew-tap
+          cd /tmp/homebrew-tap
+
+          mkdir -p Formula
+          cat > Formula/copilot-money-cli.rb <<RUBY
+          class CopilotMoneyCli < Formula
+          desc "Unofficial CLI client for Copilot Money"
+          homepage "https://github.com/JaviSoto/copilot-money-cli"
+          version "${VERSION}"
+          license "MIT"
+          
+          on_macos do
+          on_arm do
+          url "https://github.com/JaviSoto/copilot-money-cli/releases/download/${TAG}/copilot-${TAG}-aarch64-apple-darwin.tar.gz"
+          sha256 "${sha_mac_arm}"
+          end
+          
+          on_intel do
+          url "https://github.com/JaviSoto/copilot-money-cli/releases/download/${TAG}/copilot-${TAG}-x86_64-apple-darwin.tar.gz"
+          sha256 "${sha_mac_intel}"
+          end
+          end
+          
+          on_linux do
+          url "https://github.com/JaviSoto/copilot-money-cli/releases/download/${TAG}/copilot-${TAG}-x86_64-unknown-linux-gnu.tar.gz"
+          sha256 "${sha_linux}"
+          end
+          
+          def install
+          bin.install "copilot"
+          end
+          
+          test do
+          assert_match "copilot-money-cli", shell_output("#{bin}/copilot version")
+          end
+          end
+          RUBY
+
+          git add Formula/copilot-money-cli.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "copilot-money-cli ${VERSION}" || exit 0
+          git push origin main

@@ -1,0 +1,14 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"--output\", \"json\", \"budgets\", \"month\"])"
+---
+[
+  {
+    "month": "2025-11",
+    "amount": "1200"
+  },
+  {
+    "month": "2025-12",
+    "amount": "1300"
+  }
+]

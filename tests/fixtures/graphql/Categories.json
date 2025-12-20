@@ -1,0 +1,15 @@
+{
+  "data": {
+    "categories": [
+      {
+        "id": "cat_other",
+        "name": "Other"
+      },
+      {
+        "id": "cat_shops",
+        "name": "Shops"
+      }
+    ]
+  }
+}
+

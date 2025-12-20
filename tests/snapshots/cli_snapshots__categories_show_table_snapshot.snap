@@ -1,0 +1,15 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"categories\", \"show\", \"cat_other\"])"
+---
+╭─────────────┬───────────╮
+│ key         ┆ value     │
+╞═════════════╪═══════════╡
+│ id          ┆ cat_other │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ name        ┆ Other     │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ parent_id   ┆           │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ is_excluded ┆ false     │
+╰─────────────┴───────────╯

@@ -1,0 +1,11 @@
+{
+  "data": {
+    "createCategory": {
+      "id": "cat_new",
+      "name": "New Category",
+      "isExcluded": false,
+      "templateId": null,
+      "colorName": "BLUE1"
+    }
+  }
+}

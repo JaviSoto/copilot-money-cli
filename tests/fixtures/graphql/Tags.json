@@ -1,0 +1,16 @@
+{
+  "data": {
+    "tags": [
+      {
+        "id": "tag_shopping",
+        "name": "Shopping",
+        "colorName": "BLUE1"
+      },
+      {
+        "id": "tag_transfer",
+        "name": "Transfer",
+        "colorName": "GRAY1"
+      }
+    ]
+  }
+}

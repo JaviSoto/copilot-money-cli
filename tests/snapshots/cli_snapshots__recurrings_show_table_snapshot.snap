@@ -1,0 +1,15 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"recurrings\", \"show\", \"rec_1\"])"
+---
+╭─────────────┬─────────────╮
+│ key         ┆ value       │
+╞═════════════╪═════════════╡
+│ id          ┆ rec_1       │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ name        ┆ Rent        │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ frequency   ┆ MONTHLY     │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ category_id ┆ cat_housing │
+╰─────────────┴─────────────╯

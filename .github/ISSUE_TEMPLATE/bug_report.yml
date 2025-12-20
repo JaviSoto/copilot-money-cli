@@ -1,0 +1,23 @@
+name: Bug report
+description: Report a problem with the CLI
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: Include the command you ran and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Logs / output
+      description: Paste the error output (redact tokens).
+      render: shell
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Version
+      description: Output of `copilot version` or git commit.
+    validations:
+      required: true

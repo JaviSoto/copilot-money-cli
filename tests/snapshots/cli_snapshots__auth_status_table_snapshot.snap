@@ -1,0 +1,11 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"auth\", \"status\"])"
+---
+╭──────────────────┬─────────╮
+│ key              ┆ value   │
+╞══════════════════╪═════════╡
+│ token_configured ┆ false   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│ token_valid      ┆ unknown │
+╰──────────────────┴─────────╯

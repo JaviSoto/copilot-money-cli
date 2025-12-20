@@ -1,0 +1,20 @@
+{
+  "data": {
+    "bulkEditTransactions": {
+      "updated": [
+        {
+          "id": "txn_1",
+          "date": "2025-12-15",
+          "name": "Venmo",
+          "amount": "-100.00",
+          "itemId": "item_1",
+          "accountId": "acct_1",
+          "isReviewed": true,
+          "categoryId": "cat_other",
+          "tags": []
+        }
+      ],
+      "failed": []
+    }
+  }
+}

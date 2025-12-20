@@ -1,0 +1,10 @@
+{
+  "data": {
+    "createRecurring": {
+      "id": "rec_new",
+      "name": "New Recurring",
+      "frequency": "MONTHLY",
+      "categoryId": "cat_housing"
+    }
+  }
+}

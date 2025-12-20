@@ -1,0 +1,9 @@
+{
+  "data": {
+    "createTag": {
+      "id": "tag_new",
+      "name": "New Tag",
+      "colorName": "YELLOW2"
+    }
+  }
+}

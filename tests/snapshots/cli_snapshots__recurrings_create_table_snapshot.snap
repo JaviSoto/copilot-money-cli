@@ -1,0 +1,15 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"--yes\", \"recurrings\", \"create\", \"txn_1\", \"--frequency\", \"monthly\",])"
+---
+╭─────────────┬───────────────╮
+│ key         ┆ value         │
+╞═════════════╪═══════════════╡
+│ id          ┆ rec_new       │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ name        ┆ New Recurring │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ frequency   ┆ MONTHLY       │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ category_id ┆ cat_housing   │
+╰─────────────┴───────────────╯

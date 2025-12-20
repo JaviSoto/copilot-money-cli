@@ -1,0 +1,9 @@
+---
+source: tests/cli_snapshots.rs
+expression: "run(&[\"recurrings\", \"list\", \"--category-id\", \"cat_housing\"])"
+---
+╭───────┬──────┬───────────┬─────────────╮
+│ id    ┆ name ┆ frequency ┆ category_id │
+╞═══════╪══════╪═══════════╪═════════════╡
+│ rec_1 ┆ Rent ┆ MONTHLY   ┆ cat_housing │
+╰───────┴──────┴───────────┴─────────────╯

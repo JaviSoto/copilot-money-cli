@@ -1,0 +1,9 @@
+query TransactionSummary($filter: TransactionFilter) {
+  transactionsSummary(filter: $filter) {
+    transactionsCount
+    totalNetIncome
+    totalIncome
+    totalSpent
+    __typename
+  }
+}

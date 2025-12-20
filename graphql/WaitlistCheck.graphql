@@ -1,0 +1,6 @@
+query WaitlistCheck {
+  user {
+    id
+    __typename
+  }
+}

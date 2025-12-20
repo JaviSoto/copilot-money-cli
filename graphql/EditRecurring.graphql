@@ -1,0 +1,56 @@
+mutation EditRecurring($id: ID!, $input: EditRecurringInput!) {
+  editRecurring(id: $id, input: $input) {
+    recurring {
+      ...RecurringFields
+      rule {
+        ...RecurringRuleFields
+        __typename
+      }
+      payments {
+        ...RecurringPaymentFields
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment RecurringFields on Recurring {
+  nextPaymentAmount
+  nextPaymentDate
+  categoryId
+  frequency
+  emoji
+  icon {
+    ... on EmojiUnicode {
+      unicode
+      __typename
+    }
+    ... on Genmoji {
+      id
+      src
+      __typename
+    }
+    __typename
+  }
+  state
+  name
+  id
+  __typename
+}
+
+fragment RecurringRuleFields on RecurringRule {
+  nameContains
+  minAmount
+  maxAmount
+  days
+  __typename
+}
+
+fragment RecurringPaymentFields on RecurringPayment {
+  amount
+  isPaid
+  date
+  __typename
+}

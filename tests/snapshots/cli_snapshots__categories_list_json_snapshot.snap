@@ -1,0 +1,21 @@
+---
+source: tests/cli_snapshots.rs
+assertion_line: 94
+expression: "run(&[\"--output\", \"json\", \"categories\", \"list\"])"
+---
+[
+  {
+    "id": "cat_other",
+    "name": "Other",
+    "parent_id": null,
+    "excluded": "false",
+    "can_be_deleted": "false"
+  },
+  {
+    "id": "cat_shops",
+    "name": "Shops",
+    "parent_id": null,
+    "excluded": "false",
+    "can_be_deleted": "false"
+  }
+]

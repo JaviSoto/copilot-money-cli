@@ -1,0 +1,20 @@
+query NetworthSettings {
+  settings: user {
+    id
+    networthConfig {
+      combinesAssetsAndDebt
+      excludedAccounts {
+        id
+        itemId
+        __typename
+      }
+      isSingleLine
+      __typename
+    }
+    investmentConfig {
+      liveBalance
+      __typename
+    }
+    __typename
+  }
+}
