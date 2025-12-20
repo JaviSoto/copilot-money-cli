@@ -52,3 +52,22 @@ pub fn ensure_private_dir(path: &Path) -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+pub fn token_helper_path() -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    // Dev/test path (only exists in a source checkout).
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tools/get_token.py"));
+
+    // Installed layouts:
+    // - tarball users: ./copilot + ./libexec/copilot-money-cli/get_token.py
+    // - Homebrew: <prefix>/bin/copilot + <prefix>/libexec/copilot-money-cli/get_token.py
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        candidates.push(dir.join("libexec/copilot-money-cli/get_token.py"));
+        candidates.push(dir.join("../libexec/copilot-money-cli/get_token.py"));
+    }
+
+    candidates.into_iter().find(|p| p.exists())
+}

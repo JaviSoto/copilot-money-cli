@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use anyhow::Context;
 
 use crate::client::CopilotClient;
-use crate::config::{ensure_private_dir, load_token, save_token, session_path, token_path};
+use crate::config::{
+    ensure_private_dir, load_token, save_token, session_path, token_helper_path, token_path,
+};
 
 use super::render::{KeyValueRow, render_output};
 use super::{AuthCmd, AuthLoginMode, Cli};
@@ -37,57 +39,82 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
         }
         AuthCmd::Login(args) => {
             if cli.dry_run {
-                println!("dry-run: would obtain token via tools/get_token.py");
+                println!("dry-run: would obtain token via browser helper (tools/get_token.py)");
                 return Ok(());
             }
 
-            let helper = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tools/get_token.py");
-            let mut cmd = std::process::Command::new("python3");
-            cmd.arg(helper);
-            cmd.args(["--timeout-seconds", &args.timeout_seconds.to_string()]);
+            let mut token: Option<String> = None;
 
-            if args.persist_session {
-                let dir = cli.session_dir.clone().unwrap_or_else(session_path);
-                ensure_private_dir(&dir)?;
-                cmd.args(["--user-data-dir", dir.to_string_lossy().as_ref()]);
-            }
+            if let Some(helper) = token_helper_path() {
+                let mut cmd = std::process::Command::new("python3");
+                cmd.arg(helper);
+                cmd.args(["--timeout-seconds", &args.timeout_seconds.to_string()]);
 
-            match args.mode {
-                AuthLoginMode::Interactive => {
-                    cmd.args(["--mode", "interactive", "--headful"]);
+                if args.persist_session {
+                    let dir = cli.session_dir.clone().unwrap_or_else(session_path);
+                    ensure_private_dir(&dir)?;
+                    cmd.args(["--user-data-dir", dir.to_string_lossy().as_ref()]);
                 }
-                AuthLoginMode::EmailLink => {
-                    cmd.args(["--mode", "email-link"]);
-                    if let Some(email) = &args.email {
-                        cmd.args(["--email", email]);
+
+                match args.mode {
+                    AuthLoginMode::Interactive => {
+                        cmd.args(["--mode", "interactive", "--headful"]);
                     }
-                    if let Some(p) = args.secrets_file {
+                    AuthLoginMode::EmailLink => {
+                        cmd.args(["--mode", "email-link"]);
+                        if let Some(email) = &args.email {
+                            cmd.args(["--email", email]);
+                        }
+                        if let Some(p) = args.secrets_file {
+                            cmd.args(["--secrets-file", p.to_string_lossy().as_ref()]);
+                        }
+                    }
+                    AuthLoginMode::Credentials => {
+                        cmd.args(["--mode", "credentials"]);
+                        let p = args.secrets_file.clone().unwrap_or_else(|| {
+                            let mut p = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+                            p.push(".codex");
+                            p.push("secrets");
+                            p.push("copilot_money");
+                            p
+                        });
                         cmd.args(["--secrets-file", p.to_string_lossy().as_ref()]);
                     }
+                };
+
+                let out = cmd.output().context("failed to run token helper")?;
+                if out.status.success() {
+                    let t = String::from_utf8(out.stdout)?.trim().to_string();
+                    if !t.is_empty() {
+                        token = Some(t);
+                    }
+                } else {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    eprintln!(
+                        "warning: token helper failed; falling back to manual token entry
+
+{stderr}",
+                    );
                 }
-                AuthLoginMode::Credentials => {
-                    cmd.args(["--mode", "credentials"]);
-                    let p = args.secrets_file.clone().unwrap_or_else(|| {
-                        let mut p = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-                        p.push(".codex");
-                        p.push("secrets");
-                        p.push("copilot_money");
-                        p
-                    });
-                    cmd.args(["--secrets-file", p.to_string_lossy().as_ref()]);
-                }
-            };
-            let out = cmd.output().context("failed to run token helper")?;
-            if !out.status.success() {
-                anyhow::bail!("token helper failed");
+            } else {
+                eprintln!(
+                    "note: browser helper not found; falling back to manual token entry (see README for optional Playwright setup)",
+                );
             }
-            let token = String::from_utf8(out.stdout)?.trim().to_string();
-            if token.is_empty() {
-                anyhow::bail!("token helper returned empty token");
+
+            if token.is_none() {
+                eprintln!(
+                    "Paste a Copilot bearer token from your browser network inspector (Authorization: Bearer …)",
+                );
+                let t = rpassword::prompt_password("Token (input hidden): ")?;
+                if t.trim().is_empty() {
+                    anyhow::bail!("empty token");
+                }
+                token = Some(t.trim().to_string());
             }
 
             let p = cli.token_file.clone().unwrap_or_else(token_path);
-            save_token(&p, &token)?;
+            save_token(&p, token.as_ref().unwrap())?;
 
             println!("saved token to {}", p.display());
             Ok(())
@@ -106,14 +133,21 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
                 );
             }
             ensure_private_dir(&dir)?;
-            let helper = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tools/get_token.py");
-            let mut cmd = std::process::Command::new("python3");
-            cmd.arg(helper);
-            cmd.args(["--mode", "session"]);
-            cmd.args(["--user-data-dir", dir.to_string_lossy().as_ref()]);
-            cmd.args(["--timeout-seconds", &args.timeout_seconds.to_string()]);
 
-            let out = cmd.output().context("failed to run token helper")?;
+            let Some(helper) = token_helper_path() else {
+                anyhow::bail!(
+                    "token refresh helper not found (install python3 + playwright, or re-run `copilot auth set-token`)"
+                );
+            };
+
+            let out = std::process::Command::new("python3")
+                .arg(helper)
+                .args(["--mode", "session"])
+                .args(["--user-data-dir", dir.to_string_lossy().as_ref()])
+                .args(["--timeout-seconds", &args.timeout_seconds.to_string()])
+                .output()
+                .context("failed to run token helper")?;
+
             if !out.status.success() {
                 anyhow::bail!("token helper failed");
             }

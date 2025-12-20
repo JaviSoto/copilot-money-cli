@@ -482,7 +482,11 @@ fn refresh_token_via_session(session_dir: &Path, timeout_seconds: u64) -> anyhow
         return Ok(t.trim().to_string());
     }
 
-    let helper = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tools/get_token.py");
+    let Some(helper) = crate::config::token_helper_path() else {
+        anyhow::bail!(
+            "token refresh helper not found (install python3 + playwright, or re-run `copilot auth set-token`)"
+        );
+    };
     let out = std::process::Command::new("python3")
         .arg(helper)
         .args(["--mode", "session"])

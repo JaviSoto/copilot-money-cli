@@ -48,6 +48,12 @@ jobs:
           mkdir -p dist/$OUT
           cp "$BIN" dist/$OUT/
           cp README.md LICENSE CHANGELOG.md dist/$OUT/
+          # Optional auth helper (requires python3 + playwright on user machine)
+          mkdir -p dist/$OUT/libexec/copilot-money-cli
+          if [ -f tools/get_token.py ]; then
+            cp tools/get_token.py dist/$OUT/libexec/copilot-money-cli/get_token.py
+            chmod +x dist/$OUT/libexec/copilot-money-cli/get_token.py
+          fi
           tar -C dist -czf dist/$OUT.${{ matrix.archive }} $OUT
 
       - name: Upload release assets
@@ -129,6 +135,7 @@ jobs:
           
           def install
           bin.install "copilot"
+          libexec.install Dir["libexec/*"]
           end
           
           test do
