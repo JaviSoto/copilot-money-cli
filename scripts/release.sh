@@ -93,7 +93,7 @@ def ensure_changelog_entry() -> None:
 ensure_changelog_entry()
 PY
 
-cargo build --locked
+cargo build
 
 git add Cargo.toml CHANGELOG.md Cargo.lock || true
 

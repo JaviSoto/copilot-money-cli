@@ -7,3 +7,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ## [0.1.0] - 2025-12-20
 
 - Initial public release.
+
+## [0.1.1] - 2025-12-20
+
+- TODO
+
