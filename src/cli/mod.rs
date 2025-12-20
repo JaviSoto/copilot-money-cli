@@ -44,11 +44,7 @@ pub enum ColorMode {
 
 #[derive(Debug, Clone, Parser)]
 #[command(name = "copilot")]
-#[command(
-    about = "CLI for Copilot Money (unofficial)",
-    version,
-    disable_version_flag = true
-)]
+#[command(about = "CLI for Copilot Money (unofficial)", version)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -565,7 +561,7 @@ pub enum BudgetsCmd {
 
 pub fn run(cli: Cli) -> anyhow::Result<()> {
     if let Command::Version = &cli.command {
-        println!("copilot-money-cli");
+        println!("copilot-money-cli {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
 

@@ -82,24 +82,26 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
                     }
                 };
 
-                let out = cmd.output().context("failed to run token helper")?;
-                if out.status.success() {
-                    let t = String::from_utf8(out.stdout)?.trim().to_string();
-                    if !t.is_empty() {
-                        token = Some(t);
+                match cmd.output() {
+                    Ok(out) => {
+                        if out.status.success() {
+                            let t = String::from_utf8(out.stdout)?.trim().to_string();
+                            if !t.is_empty() {
+                                token = Some(t);
+                            }
+                        } else {
+                            let stderr = String::from_utf8_lossy(&out.stderr);
+                            eprintln!(
+                                "warning: token helper failed; falling back to manual token entry\n\n{stderr}",
+                            );
+                        }
                     }
-                } else {
-                    let stderr = String::from_utf8_lossy(&out.stderr);
-                    eprintln!(
-                        "warning: token helper failed; falling back to manual token entry
-
-{stderr}",
-                    );
+                    Err(e) => {
+                        eprintln!(
+                            "warning: token helper failed to start; falling back to manual token entry\n\n{e}",
+                        );
+                    }
                 }
-            } else {
-                eprintln!(
-                    "note: browser helper not found; falling back to manual token entry (see README for optional Playwright setup)",
-                );
             }
 
             if token.is_none() {

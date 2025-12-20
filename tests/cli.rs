@@ -17,7 +17,19 @@ fn version_works() {
         .arg("version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("copilot-money-cli"));
+        .stdout(predicate::str::contains("copilot-money-cli"))
+        .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
+fn dashdash_version_works() {
+    let tmp_home = tempfile::tempdir().unwrap();
+    cmd_with_fixtures(&tmp_home)
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("copilot"))
+        .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")));
 }
 
 #[test]
