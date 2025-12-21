@@ -146,9 +146,15 @@ pub struct AuthLoginArgs {
     #[arg(long, default_value_t = 180)]
     pub timeout_seconds: u64,
 
-    /// Store a persistent browser session so tokens can be refreshed without re-auth.
+    /// Store a persistent browser session so tokens can be refreshed automatically.
+    ///
+    /// Disable with `--no-persist-session` (not recommended).
     #[arg(long, default_value_t = false)]
     pub persist_session: bool,
+
+    /// Do not store a persistent browser session (tokens may expire and require re-auth).
+    #[arg(long, default_value_t = false)]
+    pub no_persist_session: bool,
 }
 
 #[derive(Debug, Clone, Args)]

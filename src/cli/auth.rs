@@ -50,7 +50,7 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
                 cmd.arg(helper);
                 cmd.args(["--timeout-seconds", &args.timeout_seconds.to_string()]);
 
-                if args.persist_session {
+                if !args.no_persist_session {
                     let dir = cli.session_dir.clone().unwrap_or_else(session_path);
                     ensure_private_dir(&dir)?;
                     cmd.args(["--user-data-dir", dir.to_string_lossy().as_ref()]);
@@ -130,7 +130,7 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
             let dir = cli.session_dir.clone().unwrap_or_else(session_path);
             if !dir.exists() {
                 anyhow::bail!(
-                    "no persisted session found at {} (run `copilot auth login --persist-session` once)",
+                    "no persisted session found at {} (run `copilot auth login` once)",
                     dir.display()
                 );
             }
