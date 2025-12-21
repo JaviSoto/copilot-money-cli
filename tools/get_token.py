@@ -109,7 +109,7 @@ def main() -> int:
             nonlocal token
             if token is not None:
                 return
-            if req.url != "https://app.copilot.money/api/graphql":
+            if not req.url.startswith("https://app.copilot.money/api/graphql"):
                 return
             auth = req.headers.get("authorization")
             if not auth:
@@ -121,7 +121,63 @@ def main() -> int:
 
         page.on("request", on_request)
 
-        page.goto("https://app.copilot.money/", wait_until="domcontentloaded", timeout=60_000)
+        def click_continue_with_email() -> None:
+            # Copilot shows a landing screen before the email input appears.
+            # Be resilient to minor UI changes and headless rendering differences.
+            locators = [
+                page.get_by_role("button", name="Continue with email"),
+                page.locator('button:has-text("Continue with email")'),
+                page.locator('text=Continue with email'),
+            ]
+            for _ in range(40):
+                for loc in locators:
+                    try:
+                        if loc.count() > 0:
+                            loc.first.click(force=True)
+                            return
+                    except Exception:
+                        pass
+                page.wait_for_timeout(250)
+
+        def fill_email_address(addr: str) -> None:
+            selectors = [
+                page.get_by_placeholder("Email address"),
+                page.locator('input[type="email"]'),
+                page.locator('input[name="email"]'),
+                page.locator('input[autocomplete="email"]'),
+            ]
+            for _ in range(40):
+                for sel in selectors:
+                    try:
+                        if sel.count() > 0:
+                            sel.first.click()
+                            sel.first.fill(addr)
+                            return
+                    except Exception:
+                        pass
+                page.wait_for_timeout(250)
+            raise SystemExit('could not find email input')
+
+        def click_continue() -> None:
+            for name in ["Continue", "Send link", "Next"]:
+                try:
+                    btn = page.get_by_role("button", name=name, exact=False)
+                    if btn.count() > 0 and btn.first.is_enabled():
+                        btn.first.click()
+                        return
+                except Exception:
+                    pass
+            # last resort: first button
+            try:
+                page.locator('button').first.click()
+                return
+            except Exception:
+                raise SystemExit('could not click Continue')
+
+        url = "https://app.copilot.money/"
+        if email_link or credentials_mode:
+            url = "https://app.copilot.money/login"
+        page.goto(url, wait_until="domcontentloaded", timeout=60_000)
         if session_mode:
             # Rely on the persisted browser session to already be logged in.
             # If no session exists, the caller should run interactive login once with `--user-data-dir`.
@@ -132,9 +188,13 @@ def main() -> int:
                 file=sys.stderr,
             )
         elif email_link:
-            page.get_by_role("button", name="Continue with email").click()
-            page.get_by_placeholder("Email address").fill(email)
-            page.get_by_role("button", name="Continue", exact=True).click()
+            try:
+                click_continue_with_email()
+            except Exception:
+                pass
+            page.wait_for_timeout(250)
+            fill_email_address(email)
+            click_continue()
 
             # User must paste the magic link from their email. Hide input because it may contain tokens.
             link = getpass.getpass(
@@ -146,9 +206,13 @@ def main() -> int:
                 return 2
             page.goto(link, wait_until="domcontentloaded", timeout=60_000)
         else:
-            page.get_by_role("button", name="Continue with email").click()
-            page.get_by_placeholder("Email address").fill(email)
-            page.get_by_role("button", name="Continue", exact=True).click()
+            try:
+                click_continue_with_email()
+            except Exception:
+                pass
+            page.wait_for_timeout(250)
+            fill_email_address(email)
+            click_continue()
 
             page.get_by_role("button", name="Sign in with password instead").click()
             page.locator('input[type="password"]').first.fill(password)
