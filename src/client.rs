@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -391,7 +392,7 @@ impl CopilotClient {
                 session_dir,
             } => {
                 let url = format!("{}/api/graphql", base_url.trim_end_matches('/'));
-                let http = reqwest::blocking::Client::new();
+                let http = http_client_from_env()?;
 
                 let mut current_token = token.clone().or_else(|| load_token(token_file).ok());
 
@@ -437,6 +438,22 @@ impl CopilotClient {
             }
         }
     }
+}
+
+fn http_client_from_env() -> anyhow::Result<reqwest::blocking::Client> {
+    let timeout_secs: u64 = std::env::var("COPILOT_HTTP_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(60);
+    let connect_timeout_secs: u64 = std::env::var("COPILOT_HTTP_CONNECT_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(10);
+
+    Ok(reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(timeout_secs))
+        .connect_timeout(Duration::from_secs(connect_timeout_secs))
+        .build()?)
 }
 
 fn is_unauthenticated(body: &Value) -> bool {

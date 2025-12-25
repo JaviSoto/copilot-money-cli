@@ -566,7 +566,7 @@ fragment ThingFields on Thing { id name }
         )
         .unwrap();
 
-        let out = crate::schema_gen::render_schema_from_operations(&vec![q, m]).unwrap();
+        let out = crate::schema_gen::render_schema_from_operations(&[q, m]).unwrap();
         assert!(out.contains("schema { query: Query mutation: Mutation }"));
         assert!(out.contains("type Query"));
         assert!(out.contains("type Mutation"));
@@ -583,7 +583,7 @@ fragment ThingFields on Thing { id name }
         )
         .unwrap();
 
-        let out = crate::schema_gen::render_schema_from_operations(&vec![f]).unwrap();
+        let out = crate::schema_gen::render_schema_from_operations(&[f]).unwrap();
         assert!(out.contains("type EmojiUnicode"));
         assert!(out.contains("unicode"));
     }
