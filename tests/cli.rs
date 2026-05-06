@@ -6,6 +6,7 @@ fn cmd_with_fixtures(tmp_home: &tempfile::TempDir) -> Command {
     cmd.env("HOME", tmp_home.path());
     cmd.env_remove("COPILOT_TOKEN");
     cmd.env_remove("COPILOT_TOKEN_FILE");
+    cmd.env_remove("COPILOT_TOKEN_HELPER_PATH");
     cmd.env("COPILOT_FIXTURES_DIR", "tests/fixtures/graphql");
     cmd
 }
@@ -50,6 +51,37 @@ fn auth_login_dry_run_works() {
         .assert()
         .success()
         .stdout(predicate::str::contains("dry-run: would obtain token"));
+}
+
+#[test]
+fn auth_login_email_link_surfaces_helper_errors() {
+    let tmp_home = tempfile::tempdir().unwrap();
+    let helper = tmp_home.path().join("helper.py");
+    std::fs::write(
+        &helper,
+        r#"#!/usr/bin/env python3
+import sys
+print("upstream login error", file=sys.stderr)
+raise SystemExit(1)
+"#,
+    )
+    .unwrap();
+
+    cmd_with_fixtures(&tmp_home)
+        .env("COPILOT_TOKEN_HELPER_PATH", &helper)
+        .args([
+            "auth",
+            "login",
+            "--mode",
+            "email-link",
+            "--email",
+            "you@example.com",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("token helper failed"))
+        .stderr(predicate::str::contains("upstream login error"))
+        .stderr(predicate::str::contains("Paste a Copilot bearer token").not());
 }
 
 #[test]

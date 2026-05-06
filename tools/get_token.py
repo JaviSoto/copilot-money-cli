@@ -22,6 +22,10 @@ def trace(message: str) -> None:
         print(f"[get_token] {message}", file=sys.stderr, flush=True)
 
 
+def debug_enabled() -> bool:
+    return os.environ.get("COPILOT_DEBUG_GET_TOKEN") == "1"
+
+
 def _reexec_into_integrations_venv_if_needed() -> None:
     if os.environ.get("CODEX_INTEGRATIONS_VENV_REEXEC") == "1":
         return
@@ -310,6 +314,7 @@ def main() -> int:
         return 2
 
     token: str | None = None
+    auth_failures: list[str] = []
 
     _reexec_under_xvfb_if_needed(mode, headful)
     trace(f"starting mode={mode}")
@@ -334,7 +339,56 @@ def main() -> int:
             if len(parts) == 2 and parts[0].lower() == "bearer":
                 token = parts[1].strip()
 
+        def auth_debug_url(url: str) -> bool:
+            return any(
+                marker in url
+                for marker in (
+                    "identitytoolkit.googleapis.com",
+                    "securetoken.googleapis.com",
+                    "firebaseappcheck.googleapis.com",
+                    "app.copilot.money/api",
+                )
+            )
+
+        def redact_auth_text(text: str) -> str:
+            redacted = text
+            if email:
+                redacted = redacted.replace(email, "<email>")
+            return redacted[:1000]
+
+        def remember_auth_failure(message: str) -> None:
+            auth_failures.append(message)
+            del auth_failures[:-5]
+            trace(message)
+
+        def on_response(resp) -> None:
+            if not debug_enabled() and resp.status < 400:
+                return
+            if not auth_debug_url(resp.url):
+                return
+            message = f"auth response {resp.status} {resp.url.split('?', 1)[0]}"
+            if resp.status >= 400:
+                try:
+                    body = redact_auth_text(resp.text())
+                    if body:
+                        message = f"{message}: {body}"
+                except Exception:
+                    pass
+                remember_auth_failure(message)
+            else:
+                trace(message)
+
+        def on_request_failed(req) -> None:
+            if not auth_debug_url(req.url):
+                return
+            failure = req.failure or "unknown failure"
+            remember_auth_failure(
+                f"auth request failed {req.url.split('?', 1)[0]}: {failure}"
+            )
+
         page.on("request", on_request)
+        page.on("response", on_response)
+        page.on("requestfailed", on_request_failed)
 
         def click_continue_with_email() -> None:
             trace("looking for continue-with-email button")
@@ -358,7 +412,6 @@ def main() -> int:
             trace(f"filling email fields for {addr}")
             selectors = [
                 'input[name="email"]',
-                'input[name="confirmEmail"]',
                 'input[type="email"]',
                 'input[autocomplete="email"]',
             ]
@@ -407,6 +460,37 @@ def main() -> int:
             except Exception:
                 raise SystemExit("could not click Continue")
 
+        def visible_login_error() -> str | None:
+            selectors = [
+                '[role="alert"]',
+                '[aria-live="assertive"]',
+                '[aria-live="polite"]',
+                '[class*="error" i]',
+                'text=/something went wrong/i',
+                'text=/invalid/i',
+                'text=/try again/i',
+            ]
+            messages: list[str] = []
+            for selector in selectors:
+                try:
+                    loc = page.locator(selector)
+                    count = min(loc.count(), 5)
+                except Exception:
+                    continue
+                for index in range(count):
+                    try:
+                        item = loc.nth(index)
+                        if not item.is_visible(timeout=250):
+                            continue
+                        text = " ".join((item.inner_text(timeout=250) or "").split())
+                    except Exception:
+                        continue
+                    if text and text not in messages:
+                        messages.append(text)
+            if not messages:
+                return None
+            return "; ".join(messages)
+
         def request_email_link(addr: str) -> None:
             try:
                 click_continue_with_email()
@@ -415,6 +499,28 @@ def main() -> int:
             page.wait_for_timeout(250)
             fill_email_address(addr)
             click_continue()
+            for _ in range(20):
+                message = visible_login_error()
+                if message:
+                    app_check_failed = any(
+                        "App attestation failed" in item
+                        or "Firebase App Check token is invalid" in item
+                        for item in auth_failures
+                    )
+                    hint = (
+                        "\nHint: Firebase App Check rejected the automated/headless browser. "
+                        "Retry with `copilot auth login --mode email-link --headful --email <email>`, "
+                        "or use `copilot auth set-token` with a token from a normal browser."
+                        if app_check_failed
+                        else ""
+                    )
+                    if auth_failures:
+                        detail = "\n".join(f"- {item}" for item in auth_failures)
+                        raise SystemExit(
+                            f"Copilot login request failed: {message}{hint}\nRecent auth failures:\n{detail}"
+                        )
+                    raise SystemExit(f"Copilot login request failed: {message}{hint}")
+                page.wait_for_timeout(250)
 
         def maybe_storage_token() -> str | None:
             try:
@@ -454,72 +560,88 @@ def main() -> int:
                 page.wait_for_timeout(250)
             return token if token and token_is_fresh(token) else None
 
-        url = "https://app.copilot.money/"
-        if email_link or credentials_mode:
-            url = "https://app.copilot.money/login"
-        trace(f"navigating to {url}")
-        page.goto(url, wait_until="domcontentloaded", timeout=60_000)
-        if interactive:
-            print(
-                "Waiting for you to log in in the opened browser window...",
-                file=sys.stderr,
-            )
-        elif email_link or credentials_mode:
-            trace("requesting email link")
-            request_email_link(email)
+        captured: str | None = None
+        if user_data_dir and (email_link or credentials_mode or session_mode):
             try:
-                trace("waiting for magic link email")
-                link = wait_for_magic_link(timeout_seconds=args.timeout_seconds, email=email)
-            except Exception:
-                link = None
-            if not link:
-                link = getpass.getpass(
-                    "Paste Copilot sign-in link URL from your email (input hidden): "
-                ).strip()
-                if not link.startswith("http"):
-                    print("invalid link", file=sys.stderr)
-                    browser.close()
-                    return 2
-            trace("opening magic link")
-            page.goto(link, wait_until="domcontentloaded", timeout=60_000)
-            try:
-                trace("filling email on auth/link confirmation")
-                fill_email_address(email)
-            except Exception:
-                pass
-            try:
-                trace("confirming email link")
-                click_continue()
-                page.wait_for_timeout(1000)
-            except Exception:
-                pass
-            try:
-                trace("opening transactions after magic link")
+                trace("checking persisted browser session before login flow")
                 page.goto(
                     "https://app.copilot.money/transactions",
                     wait_until="domcontentloaded",
                     timeout=60_000,
                 )
-            except Exception:
-                pass
+                captured = wait_for_token(8)
+                if captured:
+                    trace("captured token from existing persisted session")
+            except Exception as exc:
+                trace(f"persisted session preflight failed: {exc}")
 
-        initial_wait_seconds = 5 if session_mode else args.timeout_seconds
-        trace(f"waiting for token for up to {initial_wait_seconds}s")
-        captured = wait_for_token(initial_wait_seconds)
-
-        if session_mode and not captured:
-            try:
-                trace("session mode did not capture token on landing page; opening transactions route")
-                page.goto(
-                    "https://app.copilot.money/transactions",
-                    wait_until="domcontentloaded",
-                    timeout=60_000,
+        if not captured:
+            url = "https://app.copilot.money/"
+            if email_link or credentials_mode:
+                url = "https://app.copilot.money/login"
+            trace(f"navigating to {url}")
+            page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+            if interactive:
+                print(
+                    "Waiting for you to log in in the opened browser window...",
+                    file=sys.stderr,
                 )
-            except Exception:
-                trace("failed to open transactions route during session refresh")
+            elif email_link or credentials_mode:
+                trace("requesting email link")
+                request_email_link(email)
+                try:
+                    trace("waiting for magic link email")
+                    link = wait_for_magic_link(timeout_seconds=args.timeout_seconds, email=email)
+                except Exception:
+                    link = None
+                if not link:
+                    link = getpass.getpass(
+                        "Paste Copilot sign-in link URL from your email (input hidden): "
+                    ).strip()
+                    if not link.startswith("http"):
+                        print("invalid link", file=sys.stderr)
+                        page.context.close()
+                        return 2
+                trace("opening magic link")
+                page.goto(link, wait_until="domcontentloaded", timeout=60_000)
+                try:
+                    trace("filling email on auth/link confirmation")
+                    fill_email_address(email)
+                except BaseException as exc:
+                    trace(f"skipping email-link confirmation email fill: {exc}")
+                try:
+                    trace("confirming email link")
+                    click_continue()
+                    page.wait_for_timeout(1000)
+                except BaseException as exc:
+                    trace(f"skipping email-link confirmation click: {exc}")
+                try:
+                    trace("opening transactions after magic link")
+                    page.goto(
+                        "https://app.copilot.money/transactions",
+                        wait_until="domcontentloaded",
+                        timeout=60_000,
+                    )
+                except Exception:
+                    pass
 
-        trace(f"waiting for token for up to {args.timeout_seconds}s after magic link")
-        captured = wait_for_token(args.timeout_seconds)
+            initial_wait_seconds = 5 if session_mode else args.timeout_seconds
+            trace(f"waiting for token for up to {initial_wait_seconds}s")
+            captured = wait_for_token(initial_wait_seconds)
+
+            if session_mode and not captured:
+                try:
+                    trace("session mode did not capture token on landing page; opening transactions route")
+                    page.goto(
+                        "https://app.copilot.money/transactions",
+                        wait_until="domcontentloaded",
+                        timeout=60_000,
+                    )
+                except Exception:
+                    trace("failed to open transactions route during session refresh")
+
+            trace(f"waiting for token for up to {args.timeout_seconds}s after magic link")
+            captured = wait_for_token(args.timeout_seconds)
 
         page.context.close()
 

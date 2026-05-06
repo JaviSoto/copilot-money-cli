@@ -6,6 +6,7 @@ fn run(args: &[&str]) -> String {
     cmd.env("HOME", tmp_home.path());
     cmd.env_remove("COPILOT_TOKEN");
     cmd.env_remove("COPILOT_TOKEN_FILE");
+    cmd.env_remove("COPILOT_TOKEN_HELPER_PATH");
     cmd.env("COPILOT_FIXTURES_DIR", "tests/fixtures/graphql");
     cmd.args(args);
     let out = cmd.assert().success().get_output().stdout.clone();

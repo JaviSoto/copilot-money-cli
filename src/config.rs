@@ -54,6 +54,13 @@ pub fn ensure_private_dir(path: &Path) -> anyhow::Result<()> {
 }
 
 pub fn token_helper_path() -> Option<PathBuf> {
+    if let Some(path) = std::env::var_os("COPILOT_TOKEN_HELPER_PATH") {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
     let mut candidates: Vec<PathBuf> = Vec::new();
 
     // Dev/test path (only exists in a source checkout).

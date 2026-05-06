@@ -10,6 +10,18 @@ use crate::config::{
 use super::render::{KeyValueRow, render_output};
 use super::{AuthCmd, AuthLoginMode, Cli};
 
+fn login_mode_allows_manual_token_fallback(mode: AuthLoginMode) -> bool {
+    matches!(mode, AuthLoginMode::Interactive)
+}
+
+fn login_mode_label(mode: AuthLoginMode) -> &'static str {
+    match mode {
+        AuthLoginMode::Interactive => "interactive",
+        AuthLoginMode::EmailLink => "email-link",
+        AuthLoginMode::Credentials => "credentials",
+    }
+}
+
 pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyhow::Result<()> {
     match cmd {
         AuthCmd::Status => {
@@ -47,6 +59,8 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
 
             let mut token: Option<String> = None;
 
+            let allow_manual_fallback = login_mode_allows_manual_token_fallback(args.mode);
+
             if let Some(helper) = token_helper_path() {
                 let mut cmd = std::process::Command::new("python3");
                 cmd.arg(helper);
@@ -56,6 +70,9 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
                     let dir = cli.session_dir.clone().unwrap_or_else(session_path);
                     ensure_private_dir(&dir)?;
                     cmd.args(["--user-data-dir", dir.to_string_lossy().as_ref()]);
+                }
+                if args.headful {
+                    cmd.arg("--headful");
                 }
 
                 match args.mode {
@@ -90,20 +107,35 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
                             let t = String::from_utf8(out.stdout)?.trim().to_string();
                             if !t.is_empty() {
                                 token = Some(t);
+                            } else if !allow_manual_fallback {
+                                anyhow::bail!("token helper returned an empty token");
                             }
                         } else {
                             let stderr = String::from_utf8_lossy(&out.stderr);
-                            eprintln!(
-                                "warning: token helper failed; falling back to manual token entry\n\n{stderr}",
-                            );
+                            if allow_manual_fallback {
+                                eprintln!(
+                                    "warning: token helper failed; falling back to manual token entry\n\n{stderr}",
+                                );
+                            } else {
+                                anyhow::bail!("token helper failed\n\n{stderr}");
+                            }
                         }
                     }
                     Err(e) => {
-                        eprintln!(
-                            "warning: token helper failed to start; falling back to manual token entry\n\n{e}",
-                        );
+                        if allow_manual_fallback {
+                            eprintln!(
+                                "warning: token helper failed to start; falling back to manual token entry\n\n{e}",
+                            );
+                        } else {
+                            anyhow::bail!("token helper failed to start\n\n{e}");
+                        }
                     }
                 }
+            } else if !allow_manual_fallback {
+                anyhow::bail!(
+                    "token helper not found; `copilot auth login --mode {}` requires tools/get_token.py",
+                    login_mode_label(args.mode)
+                );
             }
 
             if token.is_none() {

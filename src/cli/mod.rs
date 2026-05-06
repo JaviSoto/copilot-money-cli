@@ -155,6 +155,10 @@ pub struct AuthLoginArgs {
     /// Do not store a persistent browser session (tokens may expire and require re-auth).
     #[arg(long, default_value_t = false)]
     pub no_persist_session: bool,
+
+    /// Run the browser visibly for non-interactive modes.
+    #[arg(long, default_value_t = false)]
+    pub headful: bool,
 }
 
 #[derive(Debug, Clone, Args)]
