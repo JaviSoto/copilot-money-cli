@@ -38,27 +38,10 @@ impl CopilotClient {
         Ok(())
     }
 
+    /// Validates the configured token without attempting persisted-session refresh.
     pub fn try_user_query_without_refresh(&self) -> anyhow::Result<()> {
-        let client = self.with_session_refresh_disabled();
-        let _ = client.graphql("User", ops::USER, json!({}))?;
+        let _ = self.graphql_with_session_refresh("User", ops::USER, json!({}), false)?;
         Ok(())
-    }
-
-    fn with_session_refresh_disabled(&self) -> Self {
-        match &self.mode {
-            ClientMode::Http {
-                base_url,
-                token,
-                token_file,
-                ..
-            } => Self::new(ClientMode::Http {
-                base_url: base_url.clone(),
-                token: token.clone(),
-                token_file: token_file.clone(),
-                session_dir: None,
-            }),
-            ClientMode::Fixtures(dir) => Self::new(ClientMode::Fixtures(dir.clone())),
-        }
     }
 
     pub fn list_transactions(&self, limit: usize) -> anyhow::Result<Vec<Transaction>> {
@@ -440,6 +423,16 @@ impl CopilotClient {
         query: &str,
         variables: Value,
     ) -> anyhow::Result<Value> {
+        self.graphql_with_session_refresh(operation_name, query, variables, true)
+    }
+
+    fn graphql_with_session_refresh(
+        &self,
+        operation_name: &str,
+        query: &str,
+        variables: Value,
+        allow_session_refresh: bool,
+    ) -> anyhow::Result<Value> {
         match &self.mode {
             ClientMode::Fixtures(dir) => {
                 let path = dir.join(format!("{operation_name}.json"));
@@ -472,7 +465,8 @@ impl CopilotClient {
                     let body: Value = resp.json()?;
 
                     if is_unauthenticated(&body) {
-                        if attempt == 1
+                        if allow_session_refresh
+                            && attempt == 1
                             && let Some(dir) = session_dir.as_ref().filter(|d| d.exists())
                         {
                             let refreshed =
@@ -576,14 +570,12 @@ pub(crate) fn refresh_token_via_session(
             "token refresh helper not found (install python3 + playwright, or re-run `copilot auth set-token`)"
         );
     };
-
-    let mut cmd = std::process::Command::new("python3");
-    cmd.arg(&helper)
+    let out = crate::config::token_helper_command(&helper)
+        .into_command()
         .args(["--mode", "session"])
+        .args(["--user-data-dir", session_dir.to_string_lossy().as_ref()])
         .args(["--timeout-seconds", &timeout_seconds.to_string()])
-        .args(["--user-data-dir", session_dir.to_string_lossy().as_ref()]);
-
-    let out = cmd.output()?;
+        .output()?;
     if out.status.success() {
         let token = String::from_utf8(out.stdout)?.trim().to_string();
         if !token.is_empty() {

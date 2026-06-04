@@ -4,7 +4,8 @@ use anyhow::Context;
 
 use crate::client::{CopilotClient, refresh_token_via_session};
 use crate::config::{
-    ensure_private_dir, load_token, save_token, session_path, token_helper_path, token_path,
+    ensure_private_dir, load_token, save_token, session_path, token_helper_command,
+    token_helper_path, token_path,
 };
 
 use super::render::{KeyValueRow, render_output};
@@ -48,8 +49,7 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
             let mut token: Option<String> = None;
 
             if let Some(helper) = token_helper_path() {
-                let mut cmd = std::process::Command::new("python3");
-                cmd.arg(helper);
+                let mut cmd = token_helper_command(&helper).into_command();
                 cmd.args(["--timeout-seconds", &args.timeout_seconds.to_string()]);
 
                 if !args.no_persist_session {

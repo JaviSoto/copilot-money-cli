@@ -1,6 +1,8 @@
+use std::ffi::OsString;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -70,4 +72,77 @@ pub fn token_helper_path() -> Option<PathBuf> {
     }
 
     candidates.into_iter().find(|p| p.exists())
+}
+
+/// Command invocation for the Python token helper, including dependency bootstrapping.
+#[derive(Debug, PartialEq, Eq)]
+pub struct TokenHelperCommand {
+    /// Program to execute for the helper invocation.
+    pub program: OsString,
+    /// Arguments passed to the helper program.
+    pub args: Vec<OsString>,
+}
+
+impl TokenHelperCommand {
+    /// Converts the value object into a process command ready for caller-specific args.
+    pub fn into_command(self) -> Command {
+        let mut command = Command::new(self.program);
+        command.args(self.args);
+        command
+    }
+}
+
+/// Builds the token helper command using the current process PATH.
+pub fn token_helper_command(helper: &Path) -> TokenHelperCommand {
+    token_helper_command_with_path(helper, std::env::var_os("PATH"))
+}
+
+/// Builds the token helper command with an injected PATH, preferring uv when available.
+pub fn token_helper_command_with_path(
+    helper: &Path,
+    path_env: Option<OsString>,
+) -> TokenHelperCommand {
+    if executable_on_path("uv", path_env.as_deref()) {
+        return TokenHelperCommand {
+            program: OsString::from("uv"),
+            args: vec![
+                OsString::from("run"),
+                OsString::from("--with"),
+                OsString::from("playwright"),
+                OsString::from("python"),
+                helper.as_os_str().to_os_string(),
+            ],
+        };
+    }
+
+    TokenHelperCommand {
+        program: OsString::from("python3"),
+        args: vec![helper.as_os_str().to_os_string()],
+    }
+}
+
+fn executable_on_path(name: &str, path_env: Option<&std::ffi::OsStr>) -> bool {
+    let Some(path_env) = path_env else {
+        return false;
+    };
+    for dir in std::env::split_paths(path_env) {
+        let candidate = dir.join(name);
+        if is_executable_file(&candidate) {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(unix)]
+fn is_executable_file(path: &Path) -> bool {
+    path.is_file()
+        && fs::metadata(path)
+            .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
+            .unwrap_or(false)
+}
+
+#[cfg(not(unix))]
+fn is_executable_file(path: &Path) -> bool {
+    path.is_file()
 }
