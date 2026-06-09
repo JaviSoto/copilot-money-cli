@@ -482,17 +482,19 @@ def main() -> int:
                     return 2
             trace("opening magic link")
             page.goto(link, wait_until="domcontentloaded", timeout=60_000)
+            email_confirmation_fields = page.locator('input[type="email"]')
             try:
+                email_confirmation_count = email_confirmation_fields.count()
+            except Exception:
+                email_confirmation_count = 0
+            if email_confirmation_count:
                 trace("filling email on auth/link confirmation")
                 fill_email_address(email)
-            except Exception:
-                pass
-            try:
                 trace("confirming email link")
                 click_continue()
                 page.wait_for_timeout(1000)
-            except Exception:
-                pass
+            else:
+                trace("auth/link confirmation email field not present; continuing")
             try:
                 trace("opening transactions after magic link")
                 page.goto(
