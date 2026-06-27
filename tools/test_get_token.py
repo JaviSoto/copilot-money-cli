@@ -30,6 +30,31 @@ class GetTokenTests(unittest.TestCase):
                 "pilotapp@javisoto.es",
             )
 
+    def test_infer_password_reads_secrets_file_for_credentials_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            secrets = Path(tmp) / "copilot_money"
+            secrets.write_text("email=pilotapp@javisoto.es\npassword=secret-value\n", encoding="utf-8")
+            self.assertEqual(get_token.infer_password(secrets), "secret-value")
+
+    def test_should_force_headful_for_login_with_chrome_on_darwin(self) -> None:
+        with mock.patch.object(get_token.platform, "system", return_value="Darwin"):
+            self.assertTrue(
+                get_token.should_force_headful_for_login("credentials", browser_channel="chrome")
+            )
+            self.assertTrue(
+                get_token.should_force_headful_for_login("email-link", browser_channel="chrome")
+            )
+            self.assertFalse(
+                get_token.should_force_headful_for_login("session", browser_channel="chrome")
+            )
+
+    def test_should_not_force_headful_without_display_on_linux(self) -> None:
+        with mock.patch.object(get_token.platform, "system", return_value="Linux"):
+            with mock.patch.dict(get_token.os.environ, {}, clear=True):
+                self.assertFalse(
+                    get_token.should_force_headful_for_login("credentials", browser_channel="chrome")
+                )
+
     def test_extract_links_prefers_firebase_magic_link(self) -> None:
         html = (
             '<a href="https://app.copilot.money/login">Open Copilot</a>'
@@ -198,6 +223,64 @@ class GetTokenTests(unittest.TestCase):
             link,
             'https://auth.copilot.money/__/auth/action?mode=signIn&oobCode=abc',
         )
+
+    def test_wait_for_magic_link_falls_back_when_alias_to_filter_misses_forwarded_mail(self) -> None:
+        html = '<a href="https://auth.copilot.money/__/auth/action?mode=signIn&oobCode=abc">Magic link</a>'
+        message = {
+            "id": "msg-1",
+            "internalDate": str((1_000_000 - 10) * 1000),
+            "payload": {
+                "mimeType": "text/html",
+                "body": {"data": ""},
+                "parts": [
+                    {
+                        "mimeType": "text/html",
+                        "body": {
+                            "data": __import__("base64").urlsafe_b64encode(html.encode("utf-8")).decode("utf-8")
+                        },
+                    }
+                ],
+            },
+        }
+        queries: list[str] = []
+
+        class _Execute:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def execute(self):
+                return self.payload
+
+        class _Messages:
+            def list(self, **kwargs):
+                query = kwargs["q"]
+                queries.append(query)
+                if "to:pilotapp@javisoto.es" in query:
+                    return _Execute({})
+                return _Execute({"messages": [{"id": "msg-1"}]})
+
+            def get(self, **kwargs):
+                return _Execute(message)
+
+        class _Users:
+            def messages(self):
+                return _Messages()
+
+        class _Service:
+            def users(self):
+                return _Users()
+
+        with mock.patch.object(get_token, "_gmail_service", return_value=_Service()):
+            with mock.patch.object(get_token.time, "time", side_effect=[1_000_000, 1_000_000, 1_000_000, 1_000_021]):
+                with mock.patch.object(get_token.time, "sleep", return_value=None):
+                    link = get_token.wait_for_magic_link(timeout_seconds=20, email="pilotapp@javisoto.es")
+
+        self.assertEqual(
+            link,
+            "https://auth.copilot.money/__/auth/action?mode=signIn&oobCode=abc",
+        )
+        self.assertIn("to:pilotapp@javisoto.es", queries[0])
+        self.assertNotIn("to:pilotapp@javisoto.es", queries[1])
 
     def test_session_mode_fails_without_requesting_magic_link_when_session_capture_fails(self) -> None:
         class _Element:

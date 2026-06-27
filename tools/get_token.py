@@ -6,6 +6,7 @@ import getpass
 import html
 import json
 import os
+import platform
 import re
 import shutil
 import sys
@@ -60,6 +61,14 @@ def infer_email(explicit_email: str | None, secrets_file: Path) -> str | None:
         return load_secret_fields(secrets_file).get("email")
     except Exception:
         return None
+
+
+def infer_password(secrets_file: Path) -> str | None:
+    try:
+        password = load_secret_fields(secrets_file).get("password")
+    except Exception:
+        return None
+    return password.strip() if password and password.strip() else None
 
 
 def _reexec_under_xvfb_if_needed(mode: str, headful: bool) -> None:
@@ -130,17 +139,48 @@ def _cleanup_stale_singleton_artifacts(session_dir: Path) -> bool:
     return removed_any
 
 
+def preferred_browser_channel() -> str | None:
+    explicit = os.environ.get("COPILOT_PLAYWRIGHT_CHANNEL", "").strip()
+    if explicit:
+        return explicit
+    if platform.system() == "Darwin" and Path("/Applications/Google Chrome.app").exists():
+        return "chrome"
+    if shutil.which("google-chrome") or shutil.which("google-chrome-stable"):
+        return "chrome"
+    return None
+
+
+def should_force_headful_for_login(mode: str, *, browser_channel: str | None) -> bool:
+    if mode not in {"email-link", "credentials"}:
+        return False
+    if not browser_channel:
+        return False
+    if platform.system() == "Darwin":
+        return True
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
 def launch_browser_context(playwright, *, user_data_dir: str | None, headful: bool):
+    channel = preferred_browser_channel()
+
+    def launch_kwargs() -> dict:
+        kwargs = {
+            "headless": not headful,
+        }
+        if channel:
+            kwargs["channel"] = channel
+        return kwargs
+
     def launch(dir_value: str | None):
         if dir_value:
-            trace(f"launching persistent browser session dir={dir_value}")
+            trace(f"launching persistent browser session dir={dir_value} channel={channel or 'bundled'}")
             return playwright.chromium.launch_persistent_context(
                 dir_value,
-                headless=not headful,
                 viewport={"width": 1280, "height": 720},
+                **launch_kwargs(),
             )
-        trace("launching ephemeral browser")
-        browser = playwright.chromium.launch(headless=not headful)
+        trace(f"launching ephemeral browser channel={channel or 'bundled'}")
+        browser = playwright.chromium.launch(**launch_kwargs())
         return browser.new_context(viewport={"width": 1280, "height": 720})
 
     try:
@@ -230,30 +270,34 @@ def wait_for_magic_link(*, timeout_seconds: int, email: str | None) -> str:
     deadline = time.time() + max(5, int(timeout_seconds))
     last_seen = None
     sender_query = "from:(noreply-copilotmoney@copilot.money OR no-reply@copilot.money OR team@copilot.money)"
-    target_query = f"to:{email} " if email else ""
-    query = f"newer_than:1d {target_query}{sender_query}".strip()
+    queries = [f"newer_than:1d to:{email} {sender_query}".strip()] if email else []
+    broader_query = f"newer_than:1d {sender_query}".strip()
+    if broader_query not in queries:
+        queries.append(broader_query)
     while time.time() < deadline:
-        resp = (
-            service.users()
-            .messages()
-            .list(userId="me", q=query, maxResults=5, includeSpamTrash=False)
-            .execute()
-        )
-        ids = [msg.get("id") for msg in (resp.get("messages") or []) if msg.get("id")]
-        for message_id in ids:
-            message = (
+        for query in queries:
+            trace(f"polling Gmail for magic link query={query}")
+            resp = (
                 service.users()
                 .messages()
-                .get(userId="me", id=message_id, format="full")
+                .list(userId="me", q=query, maxResults=5, includeSpamTrash=False)
                 .execute()
             )
-            internal_ms = int(message.get("internalDate") or 0)
-            if internal_ms < start_ms:
-                continue
-            links = extract_links(message)
-            if links:
-                return links[0]
-            last_seen = (message_id, internal_ms)
+            ids = [msg.get("id") for msg in (resp.get("messages") or []) if msg.get("id")]
+            for message_id in ids:
+                message = (
+                    service.users()
+                    .messages()
+                    .get(userId="me", id=message_id, format="full")
+                    .execute()
+                )
+                internal_ms = int(message.get("internalDate") or 0)
+                if internal_ms < start_ms:
+                    continue
+                links = extract_links(message)
+                if links:
+                    return links[0]
+                last_seen = (message_id, internal_ms)
         time.sleep(3)
     raise SystemExit(f"failed to find a fresh Copilot login email (last_seen={last_seen})")
 
@@ -302,6 +346,9 @@ def main() -> int:
     credentials_mode = mode == "credentials"
     session_mode = mode == "session"
     headful = bool(args.headful) or interactive
+    browser_channel = preferred_browser_channel()
+    if should_force_headful_for_login(mode, browser_channel=browser_channel):
+        headful = True
     secrets_file = Path(args.secrets_file).expanduser()
     email = infer_email(args.email, secrets_file)
     user_data_dir, temp_profile = prepare_user_data_dir(mode, args.user_data_dir)
@@ -363,7 +410,6 @@ def main() -> int:
                 'input[autocomplete="email"]',
             ]
             for _ in range(40):
-                filled = False
                 for selector in selectors:
                     loc = page.locator(selector)
                     try:
@@ -380,18 +426,18 @@ def main() -> int:
                                 continue
                             field.click(timeout=1000)
                             field.fill(addr, timeout=1000)
-                            trace(f"filled {selector} #{index + 1}")
-                            filled = True
+                            value = field.input_value(timeout=1000)
+                            if value == addr:
+                                trace(f"filled {selector} #{index + 1}")
+                                return
                         except Exception:
                             continue
-                if filled:
-                    return
                 page.wait_for_timeout(250)
             raise SystemExit("could not find email input")
 
         def click_continue() -> None:
             trace("looking for continue button")
-            for name in ["Continue", "Send link", "Next"]:
+            for name in ["Continue", "Sign in", "Log in", "Send link", "Next"]:
                 try:
                     btn = page.get_by_role("button", name=name, exact=False)
                     if btn.count() > 0 and btn.first.is_enabled():
@@ -414,6 +460,60 @@ def main() -> int:
                 pass
             page.wait_for_timeout(250)
             fill_email_address(addr)
+            click_continue()
+
+        def click_sign_in_with_password() -> None:
+            trace("looking for sign-in-with-password button")
+            locators = [
+                page.get_by_role("button", name="Sign in with password instead"),
+                page.locator('button:has-text("Sign in with password instead")'),
+                page.locator('text=Sign in with password instead'),
+            ]
+            for _ in range(40):
+                for loc in locators:
+                    try:
+                        if loc.count() > 0:
+                            trace("clicked sign-in-with-password button")
+                            loc.first.click(force=True)
+                            return
+                    except Exception:
+                        pass
+                page.wait_for_timeout(250)
+            raise SystemExit("could not find Sign in with password instead")
+
+        def fill_password(password: str) -> None:
+            trace("filling password field")
+            locators = [
+                page.locator('input[type="password"]'),
+                page.locator('input[name="password"]'),
+                page.locator('input[autocomplete="current-password"]'),
+            ]
+            for _ in range(40):
+                for loc in locators:
+                    try:
+                        if loc.count() == 0:
+                            continue
+                        field = loc.first
+                        if not field.is_visible():
+                            continue
+                        field.click(timeout=1000)
+                        field.fill(password, timeout=1000)
+                        return
+                    except Exception:
+                        continue
+                page.wait_for_timeout(250)
+            raise SystemExit("could not find password input")
+
+        def submit_password_login(addr: str, password: str) -> None:
+            try:
+                click_continue_with_email()
+            except BaseException:
+                pass
+            page.wait_for_timeout(250)
+            fill_email_address(addr)
+            click_continue()
+            click_sign_in_with_password()
+            fill_password(password)
             click_continue()
 
         def maybe_storage_token() -> str | None:
@@ -464,7 +564,14 @@ def main() -> int:
                 "Waiting for you to log in in the opened browser window...",
                 file=sys.stderr,
             )
-        elif email_link or credentials_mode:
+        elif credentials_mode:
+            password = infer_password(secrets_file)
+            if not password:
+                print("--mode credentials requires password=... in --secrets-file", file=sys.stderr)
+                return 2
+            trace("submitting credentials login")
+            submit_password_login(email, password)
+        elif email_link:
             trace("requesting email link")
             request_email_link(email)
             try:
