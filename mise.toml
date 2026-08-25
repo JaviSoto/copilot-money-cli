@@ -1,0 +1,14 @@
+[tools]
+rust = { version = "1.95.0", profile = "minimal", components = ["clippy", "rustfmt", "llvm-tools-preview"] }
+"cargo:cargo-llvm-cov" = "0.9.0"
+"aqua:gitleaks/gitleaks" = "8.30.1"
+
+[tasks.ci]
+description = "Run the complete local verification gate"
+run = [
+  "cargo fmt --all -- --check",
+  "cargo test",
+  "cargo clippy -- -D warnings",
+  "cargo llvm-cov --workspace --summary-only",
+  "gitleaks git --redact --verbose .",
+]
