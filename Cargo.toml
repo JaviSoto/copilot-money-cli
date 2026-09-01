@@ -20,7 +20,7 @@ name = "schema-gen"
 path = "src/bin/schema_gen.rs"
 
 [dependencies]
-anyhow = "1.0.98"
+anyhow = "1.0.101"
 clap = { version = "4.5.48", features = ["derive", "env"] }
 comfy-table = "7.2.1"
 graphql-parser = "0.4.1"
