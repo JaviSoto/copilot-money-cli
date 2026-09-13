@@ -90,6 +90,10 @@ By default, commands are **read-only**. Any write action either:
 - `copilot transactions set-tags <id...> [--mode set|add|remove] [--tag-id <TAG_ID> ...]` — update tags.
 - `copilot transactions edit <id...> --type <TYPE>` — set transaction type (best-effort).
 
+Transaction mutations normally resolve IDs from Copilot's current 5,000-row query window. For
+older transactions, pass `--context-file <export.json>` using JSON from `transactions list`; the
+file may be either the transaction array or an object containing a `transactions` array.
+
 ### Categories
 
 - `copilot categories list` — list categories.

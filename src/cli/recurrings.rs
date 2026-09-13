@@ -78,6 +78,7 @@ pub(super) fn run_recurrings(
             let txns = super::resolve_transactions_by_ids(
                 client,
                 std::slice::from_ref(&args.transaction_id),
+                args.context_file.as_ref(),
             )?;
             let txn = txns
                 .into_iter()

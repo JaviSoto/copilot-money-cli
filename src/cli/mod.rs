@@ -356,6 +356,10 @@ pub struct TransactionsShowArgs {
 #[derive(Debug, Clone, Args)]
 pub struct TransactionsReviewArgs {
     pub ids: Vec<TransactionId>,
+
+    /// Resolve transaction metadata from a prior JSON export instead of the live 5,000-row window.
+    #[arg(long, value_name = "FILE")]
+    pub context_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -366,6 +370,10 @@ pub struct TransactionsReviewArgs {
 ))]
 pub struct TransactionsSetCategoryArgs {
     pub ids: Vec<TransactionId>,
+
+    /// Resolve transaction metadata from a prior JSON export instead of the live 5,000-row window.
+    #[arg(long, value_name = "FILE")]
+    pub context_file: Option<PathBuf>,
 
     #[arg(long)]
     pub category_id: Option<CategoryId>,
@@ -378,6 +386,10 @@ pub struct TransactionsSetCategoryArgs {
 pub struct TransactionsAssignRecurringArgs {
     pub ids: Vec<TransactionId>,
 
+    /// Resolve transaction metadata from a prior JSON export instead of the live 5,000-row window.
+    #[arg(long, value_name = "FILE")]
+    pub context_file: Option<PathBuf>,
+
     #[arg(long)]
     pub recurring_id: RecurringId,
 }
@@ -385,11 +397,19 @@ pub struct TransactionsAssignRecurringArgs {
 #[derive(Debug, Clone, Args)]
 pub struct TransactionsClearRecurringArgs {
     pub ids: Vec<TransactionId>,
+
+    /// Resolve transaction metadata from a prior JSON export instead of the live 5,000-row window.
+    #[arg(long, value_name = "FILE")]
+    pub context_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Args)]
 pub struct TransactionsSetNotesArgs {
     pub ids: Vec<TransactionId>,
+
+    /// Resolve transaction metadata from a prior JSON export instead of the live 5,000-row window.
+    #[arg(long, value_name = "FILE")]
+    pub context_file: Option<PathBuf>,
 
     #[arg(long, conflicts_with = "clear")]
     pub notes: Option<String>,
@@ -409,6 +429,10 @@ pub enum TagUpdateMode {
 pub struct TransactionsSetTagsArgs {
     pub ids: Vec<TransactionId>,
 
+    /// Resolve transaction metadata from a prior JSON export instead of the live 5,000-row window.
+    #[arg(long, value_name = "FILE")]
+    pub context_file: Option<PathBuf>,
+
     #[arg(long, value_enum, default_value_t = TagUpdateMode::Set)]
     pub mode: TagUpdateMode,
 
@@ -425,6 +449,10 @@ pub struct TransactionsSetTagsArgs {
 ))]
 pub struct TransactionsEditArgs {
     pub ids: Vec<TransactionId>,
+
+    /// Resolve transaction metadata from a prior JSON export instead of the live 5,000-row window.
+    #[arg(long, value_name = "FILE")]
+    pub context_file: Option<PathBuf>,
 
     /// Set transaction type (best-effort; server enum values vary).
     #[arg(long = "type")]
@@ -547,6 +575,10 @@ pub struct RecurringsListArgs {
 pub struct RecurringsCreateArgs {
     /// A transaction ID to derive the recurring rule from.
     pub transaction_id: TransactionId,
+
+    /// Resolve transaction metadata from a prior JSON export instead of the live 5,000-row window.
+    #[arg(long, value_name = "FILE")]
+    pub context_file: Option<PathBuf>,
 
     /// Recurring frequency (best-effort; Copilot expects values like ANNUALLY, MONTHLY, etc).
     #[arg(long)]
@@ -915,7 +947,7 @@ fn run_transactions(cli: &Cli, client: &CopilotClient, cmd: TransactionsCmd) -> 
                 return Ok(());
             }
             confirm_write(cli, &format!("Mark reviewed: {:?}", args.ids))?;
-            let txns = resolve_transactions_by_ids(client, &args.ids)?;
+            let txns = resolve_transactions_by_ids(client, &args.ids, args.context_file.as_ref())?;
             let refs = build_transaction_id_refs(&txns)?;
             let result = client.bulk_edit_transactions_reviewed(refs, true)?;
             render_bulk_edit_result(cli, result)
@@ -926,7 +958,7 @@ fn run_transactions(cli: &Cli, client: &CopilotClient, cmd: TransactionsCmd) -> 
                 return Ok(());
             }
             confirm_write(cli, &format!("Mark unreviewed: {:?}", args.ids))?;
-            let txns = resolve_transactions_by_ids(client, &args.ids)?;
+            let txns = resolve_transactions_by_ids(client, &args.ids, args.context_file.as_ref())?;
             let refs = build_transaction_id_refs(&txns)?;
             let result = client.bulk_edit_transactions_reviewed(refs, false)?;
             render_bulk_edit_result(cli, result)
@@ -949,7 +981,7 @@ fn run_transactions(cli: &Cli, client: &CopilotClient, cmd: TransactionsCmd) -> 
                     category_id, args.category, args.ids
                 ),
             )?;
-            let txns = resolve_transactions_by_ids(client, &args.ids)?;
+            let txns = resolve_transactions_by_ids(client, &args.ids, args.context_file.as_ref())?;
             let mut updated = Vec::new();
             for txn in txns {
                 let (item_id, account_id) = require_item_and_account(&txn)?;
@@ -975,7 +1007,7 @@ fn run_transactions(cli: &Cli, client: &CopilotClient, cmd: TransactionsCmd) -> 
                 cli,
                 &format!("Assign recurring {} for {:?}", args.recurring_id, args.ids),
             )?;
-            let txns = resolve_transactions_by_ids(client, &args.ids)?;
+            let txns = resolve_transactions_by_ids(client, &args.ids, args.context_file.as_ref())?;
             let mut updated = Vec::new();
             for txn in txns {
                 let (item_id, account_id) = require_item_and_account(&txn)?;
@@ -995,7 +1027,7 @@ fn run_transactions(cli: &Cli, client: &CopilotClient, cmd: TransactionsCmd) -> 
                 return Ok(());
             }
             confirm_write(cli, &format!("Clear recurring for {:?}", args.ids))?;
-            let txns = resolve_transactions_by_ids(client, &args.ids)?;
+            let txns = resolve_transactions_by_ids(client, &args.ids, args.context_file.as_ref())?;
             let mut updated = Vec::new();
             let mut ok = 0usize;
             let mut skipped = 0usize;
@@ -1052,7 +1084,7 @@ fn run_transactions(cli: &Cli, client: &CopilotClient, cmd: TransactionsCmd) -> 
             if !args.clear && args.notes.is_none() {
                 anyhow::bail!("use --notes <TEXT> or --clear");
             }
-            let txns = resolve_transactions_by_ids(client, &args.ids)?;
+            let txns = resolve_transactions_by_ids(client, &args.ids, args.context_file.as_ref())?;
             let mut updated = Vec::new();
             for txn in txns {
                 let (item_id, account_id) = require_item_and_account(&txn)?;
@@ -1087,7 +1119,7 @@ fn run_transactions(cli: &Cli, client: &CopilotClient, cmd: TransactionsCmd) -> 
                 anyhow::bail!("--tag-id is required for --mode add/remove");
             }
 
-            let txns = resolve_transactions_by_ids(client, &args.ids)?;
+            let txns = resolve_transactions_by_ids(client, &args.ids, args.context_file.as_ref())?;
             let mut updated = Vec::new();
 
             for txn in txns {
@@ -1161,7 +1193,7 @@ fn run_transactions(cli: &Cli, client: &CopilotClient, cmd: TransactionsCmd) -> 
                     .insert("type".to_string(), serde_json::Value::String(t.to_string()));
             }
 
-            let txns = resolve_transactions_by_ids(client, &args.ids)?;
+            let txns = resolve_transactions_by_ids(client, &args.ids, args.context_file.as_ref())?;
             let mut updated = Vec::new();
             for txn in txns {
                 let (item_id, account_id) = require_item_and_account(&txn)?;
@@ -1200,42 +1232,73 @@ fn build_transaction_id_refs(txns: &[Transaction]) -> anyhow::Result<Vec<Transac
     Ok(out)
 }
 
+fn transactions_from_context_value(value: serde_json::Value) -> anyhow::Result<Vec<Transaction>> {
+    let rows = match value {
+        serde_json::Value::Array(rows) => rows,
+        serde_json::Value::Object(mut object) => object
+            .remove("transactions")
+            .and_then(|value| value.as_array().cloned())
+            .ok_or_else(|| anyhow::anyhow!("context JSON must contain a transactions array"))?,
+        _ => anyhow::bail!("context JSON must be an array or an object with transactions"),
+    };
+    serde_json::from_value(serde_json::Value::Array(rows))
+        .context("failed to parse transactions from context JSON")
+}
+
+fn load_transaction_context(path: &PathBuf) -> anyhow::Result<Vec<Transaction>> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read transaction context {}", path.display()))?;
+    let value = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse transaction context {}", path.display()))?;
+    transactions_from_context_value(value)
+}
+
 fn resolve_transactions_by_ids(
     client: &CopilotClient,
     ids: &[TransactionId],
+    context_file: Option<&PathBuf>,
 ) -> anyhow::Result<Vec<Transaction>> {
     let want: HashSet<TransactionId> = ids.iter().cloned().collect();
     let mut found: HashMap<TransactionId, Transaction> = HashMap::new();
-
-    let mut cursor: Option<String> = None;
     let mut scanned = 0usize;
-    let max_pages = 200usize; // safety guard; use `transactions list --all` if you need more context.
 
-    for _ in 0..max_pages {
-        let page = client.list_transactions_page(
-            200,
-            cursor.clone(),
-            None,
-            Some(transaction_id_resolution_sort()),
-        )?;
-        let has_next = page.page_info.has_next_page.unwrap_or(false);
-        cursor = page.page_info.end_cursor.clone();
-        scanned += page.transactions.len();
-
-        for t in page.transactions {
-            if want.contains(&t.id) {
-                found.insert(t.id.clone(), t);
+    if let Some(path) = context_file {
+        let transactions = load_transaction_context(path)?;
+        scanned = transactions.len();
+        for transaction in transactions {
+            if want.contains(&transaction.id) {
+                found.insert(transaction.id.clone(), transaction);
             }
         }
+    } else {
+        let mut cursor: Option<String> = None;
+        let max_pages = 200usize;
 
-        if found.len() == want.len() {
-            break;
-        }
+        for _ in 0..max_pages {
+            let page = client.list_transactions_page(
+                200,
+                cursor.clone(),
+                None,
+                Some(transaction_id_resolution_sort()),
+            )?;
+            let has_next = page.page_info.has_next_page.unwrap_or(false);
+            cursor = page.page_info.end_cursor.clone();
+            scanned += page.transactions.len();
 
-        if has_next {
-            continue;
+            for transaction in page.transactions {
+                if want.contains(&transaction.id) {
+                    found.insert(transaction.id.clone(), transaction);
+                }
+            }
+
+            if found.len() == want.len() {
+                break;
+            }
+
+            if !has_next {
+                break;
+            }
         }
-        break;
     }
 
     let mut missing = Vec::new();
@@ -1618,6 +1681,31 @@ mod helper_tests {
             transaction_id_resolution_sort(),
             serde_json::json!([{ "field": "DATE", "direction": "DESC" }])
         );
+    }
+
+    #[test]
+    fn transaction_context_accepts_export_objects() {
+        let rows = transactions_from_context_value(serde_json::json!({
+            "transactions": [{
+                "id": "txn_old",
+                "date": "2025-01-01",
+                "name": "Old transaction",
+                "amount": 12.34,
+                "itemId": "item_1",
+                "accountId": "account_1",
+                "type": "REGULAR",
+                "isReviewed": true,
+                "categoryId": null,
+                "recurringId": null,
+                "userNotes": null,
+                "tags": []
+            }]
+        }))
+        .unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id.as_str(), "txn_old");
+        assert_eq!(rows[0].item_id.as_ref().unwrap().as_str(), "item_1");
     }
 
     #[test]
