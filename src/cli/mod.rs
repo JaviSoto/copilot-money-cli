@@ -204,6 +204,11 @@ fn sort_to_graphql(sort: Option<TransactionsSort>) -> Option<serde_json::Value> 
     Some(serde_json::json!([{ "field": field, "direction": direction }]))
 }
 
+fn transaction_id_resolution_sort() -> serde_json::Value {
+    sort_to_graphql(Some(TransactionsSort::DateDesc))
+        .expect("date-desc always has a GraphQL representation")
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum TransactionField {
     Date,
@@ -1207,7 +1212,12 @@ fn resolve_transactions_by_ids(
     let max_pages = 200usize; // safety guard; use `transactions list --all` if you need more context.
 
     for _ in 0..max_pages {
-        let page = client.list_transactions_page(200, cursor.clone(), None, None)?;
+        let page = client.list_transactions_page(
+            200,
+            cursor.clone(),
+            None,
+            Some(transaction_id_resolution_sort()),
+        )?;
         let has_next = page.page_info.has_next_page.unwrap_or(false);
         cursor = page.page_info.end_cursor.clone();
         scanned += page.transactions.len();
@@ -1600,6 +1610,14 @@ mod helper_tests {
             serde_json::json!([{ "field": "AMOUNT", "direction": "ASC" }])
         );
         assert!(sort_to_graphql(None).is_none());
+    }
+
+    #[test]
+    fn transaction_id_resolution_uses_stable_date_order() {
+        assert_eq!(
+            transaction_id_resolution_sort(),
+            serde_json::json!([{ "field": "DATE", "direction": "DESC" }])
+        );
     }
 
     #[test]
