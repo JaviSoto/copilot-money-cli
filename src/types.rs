@@ -109,8 +109,21 @@ pub type ItemId = OwnedId<ItemMarker>;
 pub enum TransactionType {
     Regular,
     InternalTransfer,
+    Income,
     #[serde(other)]
     Other,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transaction_type_preserves_income() {
+        let transaction_type: TransactionType = serde_json::from_str("\"INCOME\"").unwrap();
+        assert_eq!(transaction_type, TransactionType::Income);
+        assert_eq!(transaction_type.to_string(), "INCOME");
+    }
 }
 
 impl fmt::Display for TransactionType {
@@ -118,6 +131,7 @@ impl fmt::Display for TransactionType {
         let s = match self {
             TransactionType::Regular => "REGULAR",
             TransactionType::InternalTransfer => "INTERNAL_TRANSFER",
+            TransactionType::Income => "INCOME",
             TransactionType::Other => "OTHER",
         };
         write!(f, "{s}")
