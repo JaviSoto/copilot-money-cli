@@ -137,16 +137,10 @@ pub(super) fn run_recurrings(
                 );
             }
             if let Some(v) = args.min_amount {
-                rule.insert(
-                    "minAmount".to_string(),
-                    serde_json::Value::Number(serde_json::Number::from(v)),
-                );
+                rule.insert("minAmount".to_string(), serde_json::json!(v));
             }
             if let Some(v) = args.max_amount {
-                rule.insert(
-                    "maxAmount".to_string(),
-                    serde_json::Value::Number(serde_json::Number::from(v)),
-                );
+                rule.insert("maxAmount".to_string(), serde_json::json!(v));
             }
 
             let mut input = serde_json::Map::new();

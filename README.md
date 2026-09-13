@@ -107,7 +107,7 @@ By default, commands are **read-only**. Any write action either:
 - `copilot recurrings list` — list recurring definitions.
   - Options: `--category-id`, `--name-contains`
 - `copilot recurrings create <transaction-id> --frequency <FREQ>` — create a recurring from a transaction (best-effort).
-- `copilot recurrings edit <id> [--name-contains <TEXT>] [--min-amount <N>] [--max-amount <N>] [--recalculate-only-for-future]` — edit recurring rule (best-effort).
+- `copilot recurrings edit <id> [--name-contains <TEXT>] [--min-amount <AMOUNT>] [--max-amount <AMOUNT>] [--recalculate-only-for-future]` — edit a recurring rule; amount bounds accept decimals such as `37.45` (best-effort).
 - `copilot recurrings show <id>` — show one recurring.
 
 ### Tags

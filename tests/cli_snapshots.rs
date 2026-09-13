@@ -270,9 +270,9 @@ fn recurrings_edit_table_snapshot() {
         "--name-contains",
         "rent",
         "--min-amount",
-        "10",
+        "37.45",
         "--max-amount",
-        "5000",
+        "37.45",
         "--recalculate-only-for-future",
     ]));
 }

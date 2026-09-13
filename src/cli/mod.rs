@@ -576,10 +576,10 @@ pub struct RecurringsEditArgs {
     pub name_contains: Option<String>,
 
     #[arg(long)]
-    pub min_amount: Option<i64>,
+    pub min_amount: Option<f64>,
 
     #[arg(long)]
-    pub max_amount: Option<i64>,
+    pub max_amount: Option<f64>,
 
     #[arg(long, default_value_t = false)]
     pub recalculate_only_for_future: bool,
