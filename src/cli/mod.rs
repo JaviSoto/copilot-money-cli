@@ -349,7 +349,8 @@ pub struct TransactionsSearchArgs {
 pub struct TransactionsShowArgs {
     pub id: TransactionId,
 
-    #[arg(long, default_value_t = 200)]
+    /// Deprecated and ignored: `show` searches every page of history.
+    #[arg(long, default_value_t = 200, hide = true)]
     pub limit: usize,
 }
 
@@ -902,44 +903,43 @@ fn run_transactions(cli: &Cli, client: &CopilotClient, cmd: TransactionsCmd) -> 
             )
         }
         TransactionsCmd::Show(args) => {
-            let items = client.list_transactions(args.limit)?;
-            let found = items.into_iter().find(|t| t.id == args.id);
-            match found {
-                Some(t) => render_output(
-                    cli,
-                    vec![
-                        KeyValueRow {
-                            key: "id".to_string(),
-                            value: t.id.to_string(),
-                        },
-                        KeyValueRow {
-                            key: "date".to_string(),
-                            value: t.date.unwrap_or_default(),
-                        },
-                        KeyValueRow {
-                            key: "name".to_string(),
-                            value: t.name.unwrap_or_default(),
-                        },
-                        KeyValueRow {
-                            key: "amount".to_string(),
-                            value: value_to_money_string(t.amount),
-                        },
-                        KeyValueRow {
-                            key: "category_id".to_string(),
-                            value: t
-                                .category_id
-                                .as_ref()
-                                .map(|c| c.to_string())
-                                .unwrap_or_default(),
-                        },
-                        KeyValueRow {
-                            key: "reviewed".to_string(),
-                            value: t.is_reviewed.unwrap_or(false).to_string(),
-                        },
-                    ],
-                ),
-                None => anyhow::bail!("transaction not found"),
-            }
+            let items = resolve_transactions_by_ids(client, std::slice::from_ref(&args.id), None)?;
+            let Some(t) = items.into_iter().next() else {
+                anyhow::bail!("transaction not found");
+            };
+            render_output(
+                cli,
+                vec![
+                    KeyValueRow {
+                        key: "id".to_string(),
+                        value: t.id.to_string(),
+                    },
+                    KeyValueRow {
+                        key: "date".to_string(),
+                        value: t.date.unwrap_or_default(),
+                    },
+                    KeyValueRow {
+                        key: "name".to_string(),
+                        value: t.name.unwrap_or_default(),
+                    },
+                    KeyValueRow {
+                        key: "amount".to_string(),
+                        value: value_to_money_string(t.amount),
+                    },
+                    KeyValueRow {
+                        key: "category_id".to_string(),
+                        value: t
+                            .category_id
+                            .as_ref()
+                            .map(|c| c.to_string())
+                            .unwrap_or_default(),
+                    },
+                    KeyValueRow {
+                        key: "reviewed".to_string(),
+                        value: t.is_reviewed.unwrap_or(false).to_string(),
+                    },
+                ],
+            )
         }
         TransactionsCmd::Review(args) => {
             if cli.dry_run {
