@@ -16,8 +16,6 @@ import time
 from base64 import urlsafe_b64decode
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
-
 MAX_SECRET_FD_BYTES = 1024 * 1024
 
 
@@ -458,6 +456,8 @@ def main() -> int:
 
     _reexec_under_xvfb_if_needed(mode, headful)
     trace(f"starting mode={mode}")
+    from playwright.sync_api import sync_playwright
+
     with sync_playwright() as p:
         context = launch_browser_context(
             p,

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
-import threading
 import tempfile
+import threading
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -78,6 +80,76 @@ class GetTokenTests(unittest.TestCase):
                     get_token.infer_email(None, None),
                     None,
                 )
+        finally:
+            try:
+                os.close(read_fd)
+            except OSError:
+                pass
+
+    def test_help_works_without_playwright(self) -> None:
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+        helper = Path(__file__).with_name("get_token.py")
+
+        result = subprocess.run(
+            [sys.executable, "-S", str(helper), "--help"],
+            capture_output=True,
+            check=False,
+            env=environment,
+            text=True,
+            timeout=10,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--mode", result.stdout)
+
+    def test_private_descriptor_reader_works_without_playwright(self) -> None:
+        read_fd, write_fd = os.pipe()
+        try:
+            with os.fdopen(write_fd, "wb") as pipe:
+                pipe.write(
+                    json.dumps(
+                        {"email": "fixture@example.test", "password": "fixture-only"}
+                    ).encode("utf-8")
+                )
+
+            environment = os.environ.copy()
+            environment.pop("PYTHONPATH", None)
+            environment["CODEX_SECRET_FD"] = str(read_fd)
+            script = """\
+import os
+import runpy
+import sys
+
+reader = runpy.run_path(sys.argv[1], run_name="copilot_fd_fixture")
+fd = int(os.environ["CODEX_SECRET_FD"])
+fields = reader["load_secret_fields_from_fd"](required=True)
+expected = {"email": "fixture@example.test", "password": "fixture-only"}
+if fields != expected:
+    raise SystemExit("credential fixture mismatch")
+if "CODEX_SECRET_FD" in os.environ:
+    raise SystemExit("descriptor reference remained in the environment")
+try:
+    os.fstat(fd)
+except OSError:
+    pass
+else:
+    raise SystemExit("descriptor remained open")
+fields.clear()
+print("descriptor-reader-ok")
+"""
+            result = subprocess.run(
+                [sys.executable, "-S", "-c", script, str(Path(__file__).with_name("get_token.py"))],
+                capture_output=True,
+                check=False,
+                env=environment,
+                pass_fds=(read_fd,),
+                text=True,
+                timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "descriptor-reader-ok")
         finally:
             try:
                 os.close(read_fd)
@@ -207,7 +279,7 @@ class GetTokenTests(unittest.TestCase):
             with mock.patch.object(
                 get_token, "_reexec_into_integrations_venv_if_needed", return_value=None
             ):
-                with mock.patch.object(get_token, "sync_playwright") as launch_browser:
+                with mock.patch.object(get_token, "launch_browser_context") as launch_browser:
                     with mock.patch.object(
                         get_token.sys,
                         "argv",
@@ -569,7 +641,15 @@ class GetTokenTests(unittest.TestCase):
                 "--user-data-dir",
                 str(Path(tmp) / "profile"),
             ]
-            with mock.patch.object(get_token, "sync_playwright", return_value=_PlaywrightCM(playwright)):
+            playwright_package = types.ModuleType("playwright")
+            playwright_package.__path__ = []
+            sync_api = types.ModuleType("playwright.sync_api")
+            sync_api.sync_playwright = lambda: _PlaywrightCM(playwright)
+            playwright_package.sync_api = sync_api
+            with mock.patch.dict(
+                sys.modules,
+                {"playwright": playwright_package, "playwright.sync_api": sync_api},
+            ):
                 with mock.patch.object(get_token, "_reexec_into_integrations_venv_if_needed", return_value=None):
                     with mock.patch.object(get_token, "_reexec_under_xvfb_if_needed", return_value=None):
                         with mock.patch.object(get_token, "wait_for_magic_link", side_effect=AssertionError("session mode must not poll Gmail for a magic link")):
