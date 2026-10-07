@@ -8,6 +8,7 @@ description = "Run the complete local verification gate"
 run = [
   "cargo fmt --all -- --check",
   "cargo test",
+  "PYTHONPATH=tests/fixtures/token_helper python3 -m unittest tools.test_get_token",
   "cargo clippy -- -D warnings",
   "cargo llvm-cov --workspace --summary-only",
   "gitleaks git --redact --verbose .",

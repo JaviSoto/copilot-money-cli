@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+import os
 import sys
+import threading
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,6 +57,164 @@ class GetTokenTests(unittest.TestCase):
                 self.assertFalse(
                     get_token.should_force_headful_for_login("credentials", browser_channel="chrome")
                 )
+
+    def test_loads_credentials_from_private_descriptor(self) -> None:
+        read_fd, write_fd = os.pipe()
+        try:
+            with os.fdopen(write_fd, "w", encoding="utf-8") as stream:
+                json.dump(
+                    {"email": "fixture@example.test", "password": "fixture-only"},
+                    stream,
+                )
+            with mock.patch.dict(os.environ, {"CODEX_SECRET_FD": str(read_fd)}):
+                self.assertEqual(
+                    get_token.load_secret_fields_from_fd(),
+                    {"email": "fixture@example.test", "password": "fixture-only"},
+                )
+                self.assertNotIn("CODEX_SECRET_FD", os.environ)
+                with self.assertRaises(OSError):
+                    os.fstat(read_fd)
+                self.assertEqual(
+                    get_token.infer_email(None, None),
+                    None,
+                )
+        finally:
+            try:
+                os.close(read_fd)
+            except OSError:
+                pass
+
+    def test_supplied_malformed_descriptor_fails_closed_when_required(self) -> None:
+        with mock.patch.dict(os.environ, {"CODEX_SECRET_FD": "not-a-descriptor"}):
+            with self.assertRaises(get_token.SecretDescriptorError):
+                get_token.load_secret_fields_from_fd(required=True)
+            self.assertNotIn("CODEX_SECRET_FD", os.environ)
+
+    def test_missing_descriptor_fails_closed_when_required(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(get_token.SecretDescriptorError):
+                get_token.load_secret_fields_from_fd(required=True)
+
+    def test_descriptor_read_is_bounded_to_existing_one_mib_contract(self) -> None:
+        read_fd, write_fd = os.pipe()
+
+        def write_oversized_payload() -> None:
+            with os.fdopen(write_fd, "wb") as stream:
+                stream.write(b"x" * (get_token.MAX_SECRET_FD_BYTES + 1))
+
+        writer = threading.Thread(target=write_oversized_payload)
+        writer.start()
+        try:
+            with mock.patch.dict(os.environ, {"CODEX_SECRET_FD": str(read_fd)}):
+                with self.assertRaises(get_token.SecretDescriptorError):
+                    get_token.load_secret_fields_from_fd(required=True)
+            self.assertNotIn("CODEX_SECRET_FD", os.environ)
+            with self.assertRaises(OSError):
+                os.fstat(read_fd)
+            writer.join(timeout=5)
+            self.assertFalse(writer.is_alive())
+        finally:
+            try:
+                os.close(read_fd)
+            except OSError:
+                pass
+            writer.join(timeout=5)
+
+    def test_regular_file_descriptor_is_rejected(self) -> None:
+        with tempfile.TemporaryFile() as source:
+            descriptor = os.dup(source.fileno())
+            try:
+                with mock.patch.dict(os.environ, {"CODEX_SECRET_FD": str(descriptor)}):
+                    with self.assertRaises(get_token.SecretDescriptorError):
+                        get_token.load_secret_fields_from_fd(required=True)
+                os.fstat(descriptor)
+            finally:
+                os.close(descriptor)
+
+    def test_malformed_pipe_payload_fails_closed_and_closes_descriptor(self) -> None:
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(write_fd, "wb") as stream:
+            stream.write(b"not-json")
+        try:
+            with mock.patch.dict(os.environ, {"CODEX_SECRET_FD": str(read_fd)}):
+                with self.assertRaises(get_token.SecretDescriptorError):
+                    get_token.load_secret_fields_from_fd(required=True)
+                self.assertNotIn("CODEX_SECRET_FD", os.environ)
+            with self.assertRaises(OSError):
+                os.fstat(read_fd)
+        finally:
+            try:
+                os.close(read_fd)
+            except OSError:
+                pass
+
+    def test_explicit_email_discards_pipe_without_reading_it(self) -> None:
+        read_fd, write_fd = os.pipe()
+        os.write(write_fd, b"not-json")
+        try:
+            with mock.patch.dict(os.environ, {"CODEX_SECRET_FD": str(read_fd)}):
+                self.assertEqual(
+                    get_token.infer_email("explicit@example.test", None),
+                    "explicit@example.test",
+                )
+                self.assertNotIn("CODEX_SECRET_FD", os.environ)
+            with self.assertRaises(OSError):
+                os.fstat(read_fd)
+        finally:
+            try:
+                os.close(read_fd)
+            except OSError:
+                pass
+            os.close(write_fd)
+
+    def test_malformed_descriptor_is_ignored_only_outside_strict_credentials_mode(self) -> None:
+        with mock.patch.dict(os.environ, {"CODEX_SECRET_FD": "not-a-descriptor"}):
+            self.assertEqual(get_token.load_secret_fields_from_fd(), {})
+
+    def test_no_implicit_plaintext_file_fallback(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.object(get_token, "load_secret_fields") as read_file:
+                self.assertIsNone(get_token.infer_email(None, None))
+                read_file.assert_not_called()
+
+    def test_explicit_file_overrides_private_descriptor(self) -> None:
+        read_fd, write_fd = os.pipe()
+        try:
+            with os.fdopen(write_fd, "w", encoding="utf-8") as stream:
+                json.dump(
+                    {"email": "vault@example.test", "password": "fixture-only"},
+                    stream,
+                )
+            with tempfile.TemporaryDirectory() as tmp:
+                secrets = Path(tmp) / "copilot_money"
+                secrets.write_text("email=explicit@example.test\n", encoding="utf-8")
+                with mock.patch.dict(os.environ, {"CODEX_SECRET_FD": str(read_fd)}):
+                    self.assertEqual(
+                        get_token.infer_email(None, secrets),
+                        "explicit@example.test",
+                    )
+                    self.assertNotIn("CODEX_SECRET_FD", os.environ)
+                with self.assertRaises(OSError):
+                    os.fstat(read_fd)
+        finally:
+            try:
+                os.close(read_fd)
+            except OSError:
+                pass
+
+    def test_noninteractive_login_fails_closed_without_email_or_descriptor(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.object(
+                get_token, "_reexec_into_integrations_venv_if_needed", return_value=None
+            ):
+                with mock.patch.object(get_token, "sync_playwright") as launch_browser:
+                    with mock.patch.object(
+                        get_token.sys,
+                        "argv",
+                        ["get_token.py", "--mode", "credentials"],
+                    ):
+                        self.assertEqual(get_token.main(), 2)
+                    launch_browser.assert_not_called()
 
     def test_extract_links_prefers_firebase_magic_link(self) -> None:
         html = (

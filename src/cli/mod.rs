@@ -127,7 +127,7 @@ pub enum AuthLoginMode {
     Interactive,
     /// Sends a magic link email; paste the link back (SSH-friendly).
     EmailLink,
-    /// Uses `--secrets-file` with email+password (not recommended for open-source).
+    /// Uses email and password from CODEX_SECRET_FD, or an explicit `--secrets-file`.
     Credentials,
 }
 
@@ -139,7 +139,7 @@ pub struct AuthLoginArgs {
     #[arg(long, value_enum, default_value_t = AuthLoginMode::Interactive)]
     pub mode: AuthLoginMode,
 
-    /// Required for `--mode email-link` unless it can be inferred from `--secrets-file`.
+    /// Required for email-link login unless inferred from CODEX_SECRET_FD or an explicit file.
     #[arg(long)]
     pub email: Option<String>,
 

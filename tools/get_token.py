@@ -9,6 +9,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import sys
 import tempfile
 import time
@@ -16,6 +17,12 @@ from base64 import urlsafe_b64decode
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
+
+MAX_SECRET_FD_BYTES = 1024 * 1024
+
+
+class SecretDescriptorError(ValueError):
+    """A private credential descriptor is missing or malformed."""
 
 
 def trace(message: str) -> None:
@@ -54,19 +61,88 @@ def load_secret_fields(path: Path) -> dict[str, str]:
     return fields
 
 
-def infer_email(explicit_email: str | None, secrets_file: Path) -> str | None:
-    if explicit_email and explicit_email.strip():
-        return explicit_email.strip()
+def discard_unused_secret_fd() -> None:
+    """Remove and close an unused credential pipe without reading it."""
+    descriptor = os.environ.pop("CODEX_SECRET_FD", None)
+    if descriptor is None or not re.fullmatch(r"[0-9]{1,9}", descriptor):
+        return
     try:
-        return load_secret_fields(secrets_file).get("email")
-    except Exception:
+        fd = int(descriptor)
+        if fd >= 3 and stat.S_ISFIFO(os.fstat(fd).st_mode):
+            os.close(fd)
+    except OSError:
+        return
+
+
+def load_secret_fields_from_fd(*, required: bool = False) -> dict[str, str]:
+    descriptor = os.environ.pop("CODEX_SECRET_FD", None)
+    if descriptor is None:
+        if required:
+            raise SecretDescriptorError("credential descriptor is required")
+        return {}
+
+    def invalid_descriptor() -> SecretDescriptorError:
+        return SecretDescriptorError("credential descriptor is invalid")
+
+    fd_to_close: int | None = None
+    try:
+        if not re.fullmatch(r"[0-9]{1,9}", descriptor):
+            raise invalid_descriptor()
+        fd = int(descriptor)
+        if fd < 3 or not stat.S_ISFIFO(os.fstat(fd).st_mode):
+            raise invalid_descriptor()
+        fd_to_close = fd
+        with os.fdopen(os.dup(fd), "rb") as stream:
+            encoded = stream.read(MAX_SECRET_FD_BYTES + 1)
+        if len(encoded) > MAX_SECRET_FD_BYTES:
+            raise invalid_descriptor()
+        payload = json.loads(encoded.decode("utf-8"))
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != {"email", "password"}
+            or any(not isinstance(value, str) or not value.strip() for value in payload.values())
+        ):
+            raise invalid_descriptor()
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, SecretDescriptorError):
+        if required:
+            raise invalid_descriptor() from None
+        return {}
+    finally:
+        if fd_to_close is not None:
+            try:
+                os.close(fd_to_close)
+            except OSError:
+                pass
+    fields = {key: value.strip() for key, value in payload.items()}
+    payload.clear()
+    return fields
+
+
+def infer_email(
+    explicit_email: str | None,
+    secrets_file: Path | None,
+) -> str | None:
+    if explicit_email and explicit_email.strip():
+        discard_unused_secret_fd()
+        return explicit_email.strip()
+    if secrets_file is not None:
+        discard_unused_secret_fd()
+        try:
+            return load_secret_fields(secrets_file).get("email")
+        except (OSError, UnicodeError):
+            return None
+    fields = load_secret_fields_from_fd()
+    email = fields.get("email")
+    fields.clear()
+    return email
+
+
+def infer_password(secrets_file: Path | None) -> str | None:
+    if secrets_file is None:
         return None
-
-
-def infer_password(secrets_file: Path) -> str | None:
     try:
         password = load_secret_fields(secrets_file).get("password")
-    except Exception:
+    except (OSError, UnicodeError):
         return None
     return password.strip() if password and password.strip() else None
 
@@ -310,16 +386,15 @@ def main() -> int:
         "--mode",
         choices=["interactive", "email-link", "credentials", "session"],
         default="interactive",
-        help="Login flow: interactive (default), email-link (SSH-friendly), or credentials (uses secrets file).",
+        help="Login flow: interactive (default), email-link, or credentials (email and password from CODEX_SECRET_FD).",
     )
     parser.add_argument(
         "--secrets-file",
-        default=str(Path("~/.codex/secrets/copilot_money").expanduser()),
-        help="Path to secrets file containing email=... and password=...",
+        help="Explicit legacy escape hatch: path to a file containing email=... and password=...",
     )
     parser.add_argument(
         "--email",
-        help="Email address (required for non-interactive login unless it can be inferred from --secrets-file).",
+        help="Email address (required for non-interactive login unless inferred from CODEX_SECRET_FD or --secrets-file).",
     )
     parser.add_argument(
         "--headful",
@@ -349,11 +424,34 @@ def main() -> int:
     browser_channel = preferred_browser_channel()
     if should_force_headful_for_login(mode, browser_channel=browser_channel):
         headful = True
-    secrets_file = Path(args.secrets_file).expanduser()
-    email = infer_email(args.email, secrets_file)
+    secrets_file = Path(args.secrets_file).expanduser() if args.secrets_file else None
+    password: str | None = None
+    if credentials_mode and args.email is None and secrets_file is None:
+        try:
+            credential_fields = load_secret_fields_from_fd(required=True)
+        except SecretDescriptorError:
+            print("credential descriptor is unavailable or malformed", file=sys.stderr)
+            return 2
+        email = credential_fields.get("email")
+        password = credential_fields.get("password")
+        credential_fields.clear()
+    else:
+        email = infer_email(args.email, secrets_file)
+        if credentials_mode:
+            password = infer_password(secrets_file)
+
+    if credentials_mode and not password:
+        print(
+            "--mode credentials requires password credentials from CODEX_SECRET_FD or an explicit --secrets-file",
+            file=sys.stderr,
+        )
+        return 2
     user_data_dir, temp_profile = prepare_user_data_dir(mode, args.user_data_dir)
     if (credentials_mode or email_link) and not email:
-        print("--email is required (or must be inferable from --secrets-file)", file=sys.stderr)
+        print(
+            "--email is required (or must be available from CODEX_SECRET_FD or an explicit --secrets-file)",
+            file=sys.stderr,
+        )
         return 2
 
     token: str | None = None
@@ -565,10 +663,6 @@ def main() -> int:
                 file=sys.stderr,
             )
         elif credentials_mode:
-            password = infer_password(secrets_file)
-            if not password:
-                print("--mode credentials requires password=... in --secrets-file", file=sys.stderr)
-                return 2
             trace("submitting credentials login")
             submit_password_login(email, password)
         elif email_link:

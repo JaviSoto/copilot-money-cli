@@ -30,8 +30,10 @@ This demo runs the CLI against the repo’s fixture data (no network calls):
 
 ## Auth
 
-- `copilot auth login` tries to use an optional browser helper (Python + Playwright); otherwise it falls back to manual token paste.
+- `copilot auth login` tries to use an optional browser helper (Python + Playwright); otherwise it falls back to manual token paste. `--mode credentials` fails closed if its private credential input or helper fails; it never switches to bearer-token paste.
 - SSH-friendly: `copilot auth login --mode email-link --email you@example.com` (or just paste a bearer token manually).
+- To sign in with the stored Copilot account, use `codex-secret run copilot_money_account -- copilot auth login --mode credentials`. The helper reads the account email and password from its private descriptor and submits them through the existing browser sign-in flow; neither value is printed.
+- `--secrets-file PATH` is an explicit legacy escape hatch. It is never read by default.
 
 ### Auth troubleshooting
 
@@ -64,7 +66,7 @@ By default, commands are **read-only**. Any write action either:
 - `copilot auth login` — obtain and store a token (uses optional Python+Playwright helper; otherwise prompts for manual token paste).
   - `--mode interactive` (default): opens a browser window and waits.
   - `--mode email-link`: SSH-friendly; you paste the sign-in link back (hidden input).
-  - `--mode credentials`: uses `--secrets-file` (not recommended).
+  - `--mode credentials`: uses email and password from `CODEX_SECRET_FD`; a missing or malformed descriptor fails without prompting for a bearer token. An explicit `--secrets-file` remains an escape hatch.
   - `--persist-session`: stores a Playwright browser session under `~/.config/copilot-money-cli/playwright-session` so tokens can be refreshed without re-auth.
 - Normal read commands now auto-refresh from the persisted session when the saved bearer token is stale. If session capture fails, the command fails fast and tells you to run `copilot auth refresh` or `copilot auth login` explicitly; it does not request magic-link emails on its own.
 - `copilot auth status` stays passive on purpose: it reports whether the current token works, but does not trigger refresh or send login emails.

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
 
 use crate::client::{CopilotClient, refresh_token_via_session};
@@ -46,9 +44,15 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
                 return Ok(());
             }
 
+            let credentials_mode = matches!(args.mode, AuthLoginMode::Credentials);
+            let helper = token_helper_path();
+            if credentials_mode && helper.is_none() {
+                anyhow::bail!("credentials login helper is unavailable; no token was saved");
+            }
+
             let mut token: Option<String> = None;
 
-            if let Some(helper) = token_helper_path() {
+            if let Some(helper) = helper {
                 let mut cmd = token_helper_command(&helper).into_command();
                 cmd.args(["--timeout-seconds", &args.timeout_seconds.to_string()]);
 
@@ -73,14 +77,11 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
                     }
                     AuthLoginMode::Credentials => {
                         cmd.args(["--mode", "credentials"]);
-                        let p = args.secrets_file.clone().unwrap_or_else(|| {
-                            let mut p = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-                            p.push(".codex");
-                            p.push("secrets");
-                            p.push("copilot_money");
-                            p
-                        });
-                        cmd.args(["--secrets-file", p.to_string_lossy().as_ref()]);
+                        if let Some(p) = args.secrets_file {
+                            // Preserve an explicit legacy escape hatch. With no
+                            // path, the helper reads the inherited CODEX_SECRET_FD.
+                            cmd.args(["--secrets-file", p.to_string_lossy().as_ref()]);
+                        }
                     }
                 };
 
@@ -90,8 +91,17 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
                             let t = String::from_utf8(out.stdout)?.trim().to_string();
                             if !t.is_empty() {
                                 token = Some(t);
+                            } else if credentials_mode {
+                                anyhow::bail!(
+                                    "credentials login helper returned no token; no token was saved"
+                                );
                             }
                         } else {
+                            if credentials_mode {
+                                anyhow::bail!(
+                                    "credentials login helper failed; no token was saved"
+                                );
+                            }
                             let stderr = String::from_utf8_lossy(&out.stderr);
                             eprintln!(
                                 "warning: token helper failed; falling back to manual token entry\n\n{stderr}",
@@ -99,6 +109,11 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
                         }
                     }
                     Err(e) => {
+                        if credentials_mode {
+                            anyhow::bail!(
+                                "credentials login helper could not start; no token was saved"
+                            );
+                        }
                         eprintln!(
                             "warning: token helper failed to start; falling back to manual token entry\n\n{e}",
                         );
@@ -107,6 +122,9 @@ pub(super) fn run_auth(cli: &Cli, client: &CopilotClient, cmd: AuthCmd) -> anyho
             }
 
             if token.is_none() {
+                if credentials_mode {
+                    anyhow::bail!("credentials login did not produce a token; no token was saved");
+                }
                 eprintln!(
                     "Paste a Copilot bearer token from your browser network inspector (Authorization: Bearer …)",
                 );
